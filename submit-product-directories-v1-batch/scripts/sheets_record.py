@@ -48,6 +48,60 @@ SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 METADATA_KEY = "spd_v1_schema_version"
 CONFIG_ENV = "BACKLINK_GO_CONFIG_DIR"
 
+COLOR_GREEN = ({"red": 0.91, "green": 0.97, "blue": 0.93}, {"red": 0.12, "green": 0.38, "blue": 0.23})
+COLOR_BLUE = ({"red": 0.92, "green": 0.95, "blue": 0.99}, {"red": 0.13, "green": 0.31, "blue": 0.55})
+COLOR_YELLOW = ({"red": 1.0, "green": 0.97, "blue": 0.87}, {"red": 0.48, "green": 0.34, "blue": 0.06})
+COLOR_RED = ({"red": 0.99, "green": 0.92, "blue": 0.93}, {"red": 0.55, "green": 0.16, "blue": 0.20})
+COLOR_GRAY = ({"red": 0.95, "green": 0.96, "blue": 0.97}, {"red": 0.32, "green": 0.36, "blue": 0.42})
+
+
+def fixed_option_colors() -> dict[tuple[str, str], dict[str, tuple[dict[str, float], dict[str, float]]]]:
+    status = {
+        "published": COLOR_GREEN,
+        "submitted": COLOR_BLUE,
+        "awaiting approval": COLOR_BLUE,
+        "awaiting email verification": COLOR_BLUE,
+        "form in progress": COLOR_YELLOW,
+        "draft saved": COLOR_YELLOW,
+        "submission outcome unknown": COLOR_YELLOW,
+        "blocked — manual verification": COLOR_RED,
+        "blocked — missing verified data": COLOR_RED,
+        "blocked — account or email policy": COLOR_RED,
+        "unavailable": COLOR_RED,
+        "paid-only": COLOR_RED,
+        "ineligible": COLOR_RED,
+        "not attempted": COLOR_GRAY,
+        "duplicate — no action": COLOR_GRAY,
+        "terminated by user": COLOR_GRAY,
+    }
+    verification = {
+        "automatic verification passed": COLOR_GREEN,
+        "manual verification completed": COLOR_GREEN,
+        "no verification presented": COLOR_BLUE,
+        "verification unavailable before form": COLOR_BLUE,
+        "awaiting manual verification": COLOR_YELLOW,
+        "verification expired/reset": COLOR_RED,
+        "not checked": COLOR_GRAY,
+        "deferred by user": COLOR_GRAY,
+    }
+    return {
+        ("Platforms", "account_required"): {"yes": COLOR_BLUE, "no": COLOR_GREEN, "unknown": COLOR_GRAY},
+        ("Platforms", "cost_model"): {
+            "free": COLOR_GREEN, "freemium": COLOR_BLUE, "paid": COLOR_RED, "unknown": COLOR_GRAY,
+        },
+        ("Platforms", "reciprocal_requirement"): {
+            "none": COLOR_GREEN, "optional": COLOR_YELLOW, "required": COLOR_RED, "unknown": COLOR_GRAY,
+        },
+        ("Platforms", "availability"): {
+            "available": COLOR_GREEN, "unavailable": COLOR_RED, "unknown": COLOR_GRAY,
+        },
+        ("Submissions", "status"): status,
+        ("Submissions", "verification_preflight"): verification,
+        ("Submissions", "legitimacy_gate"): {
+            "passed": COLOR_GREEN, "failed": COLOR_RED, "not checked": COLOR_GRAY,
+        },
+    }
+
 
 def default_config_dir() -> Path:
     repository_root = Path(__file__).resolve().parents[2]
@@ -200,13 +254,15 @@ def readable_format_requests(properties: dict[str, dict[str, Any]]) -> list[dict
     requests: list[dict[str, Any]] = []
     for tab_name, headers in TABLE_HEADERS.items():
         sheet_id = properties[tab_name]["sheetId"]
+        for index in reversed(range(int(properties[tab_name].get("_conditionalRuleCount", 0)))):
+            requests.append({"deleteConditionalFormatRule": {"sheetId": sheet_id, "index": index}})
         requests.extend(
             [
                 {
                     "updateSheetProperties": {
                         "properties": {
                             "sheetId": sheet_id,
-                            "gridProperties": {"hideGridlines": False, "frozenColumnCount": 1},
+                            "gridProperties": {"hideGridlines": False, "frozenColumnCount": min(2, len(headers))},
                         },
                         "fields": "gridProperties.hideGridlines,gridProperties.frozenColumnCount",
                     }
@@ -235,6 +291,24 @@ def readable_format_requests(properties: dict[str, dict[str, Any]]) -> list[dict
                     }
                 },
                 {
+                    "repeatCell": {
+                        "range": {
+                            "sheetId": sheet_id,
+                            "startRowIndex": 1,
+                            "startColumnIndex": 0,
+                            "endColumnIndex": len(headers),
+                        },
+                        "cell": {
+                            "userEnteredFormat": {
+                                "backgroundColor": {"red": 0.98, "green": 0.985, "blue": 0.995},
+                                "textFormat": {"foregroundColor": {"red": 0.18, "green": 0.22, "blue": 0.28}},
+                                "verticalAlignment": "MIDDLE",
+                            }
+                        },
+                        "fields": "userEnteredFormat(backgroundColor,textFormat,verticalAlignment)",
+                    }
+                },
+                {
                     "updateDimensionProperties": {
                         "range": {"sheetId": sheet_id, "dimension": "ROWS", "startIndex": 0, "endIndex": 1},
                         "properties": {"pixelSize": 48},
@@ -259,6 +333,37 @@ def readable_format_requests(properties: dict[str, dict[str, Any]]) -> list[dict
                     }
                 }
             )
+    for (tab_name, header), values in fixed_option_colors().items():
+        sheet_id = properties[tab_name]["sheetId"]
+        column_index = TABLE_HEADERS[tab_name].index(header)
+        for value, (background, foreground) in values.items():
+            requests.append(
+                {
+                    "addConditionalFormatRule": {
+                        "rule": {
+                            "ranges": [
+                                {
+                                    "sheetId": sheet_id,
+                                    "startRowIndex": 1,
+                                    "startColumnIndex": column_index,
+                                    "endColumnIndex": column_index + 1,
+                                }
+                            ],
+                            "booleanRule": {
+                                "condition": {
+                                    "type": "TEXT_EQ",
+                                    "values": [{"userEnteredValue": value}],
+                                },
+                                "format": {
+                                    "backgroundColor": background,
+                                    "textFormat": {"foregroundColor": foreground, "bold": True},
+                                },
+                            },
+                        },
+                        "index": 0,
+                    }
+                }
+            )
     return requests
 
 
@@ -268,9 +373,11 @@ def format_workbook(store: "GoogleSheetsStore") -> dict[str, object]:
         item.get("metadataValue") for item in metadata.get("developerMetadata", [])
         if item.get("metadataKey") == METADATA_KEY
     ]
-    properties = {
-        sheet["properties"]["title"]: sheet["properties"] for sheet in metadata.get("sheets", [])
-    }
+    properties = {}
+    for sheet in metadata.get("sheets", []):
+        item = dict(sheet["properties"])
+        item["_conditionalRuleCount"] = len(sheet.get("conditionalFormats", []))
+        properties[item["title"]] = item
     if versions != [SCHEMA_VERSION] or set(properties) != set(TABLE_HEADERS):
         raise RecordValidationError("workbook schema is missing or unsupported")
     data = []
@@ -300,11 +407,11 @@ def _cell_row(values: list[object]) -> dict[str, object]:
     }
 
 
-def schema_v2_migration_requests(
+def schema_v3_migration_requests(
     properties: dict[str, dict[str, Any]],
     records: dict[str, list[dict[str, str]]],
 ) -> list[dict[str, Any]]:
-    """Build one atomic Sheets batchUpdate from schema v1 to schema v2."""
+    """Build one atomic Sheets batchUpdate from schema v2 to schema v3."""
     requests: list[dict[str, Any]] = []
     for tab_name, new_headers in TABLE_HEADERS.items():
         sheet_id = properties[tab_name]["sheetId"]
@@ -407,8 +514,8 @@ def schema_v2_migration_requests(
     return requests
 
 
-def migrate_schema_v2(config_dir: Path) -> dict[str, object]:
-    """Migrate the configured workbook from schema v1 to the compact v2 schema."""
+def migrate_schema_v3(config_dir: Path) -> dict[str, object]:
+    """Migrate the configured workbook from schema v2 to the audit-first v3 schema."""
     config_path = config_dir / "v1-sheets.json"
     require_private_file(config_path)
     config = read_json_file(config_path)
@@ -448,13 +555,14 @@ def migrate_schema_v2(config_dir: Path) -> dict[str, object]:
     )
     if not audit["valid"]:
         raise RecordValidationError("migrated data failed validation: " + "; ".join(audit["errors"]))
-    properties = {
-        sheet["properties"]["title"]: sheet["properties"]
-        for sheet in metadata.get("sheets", [])
-    }
+    properties = {}
+    for sheet in metadata.get("sheets", []):
+        item = dict(sheet["properties"])
+        item["_conditionalRuleCount"] = len(sheet.get("conditionalFormats", []))
+        properties[item["title"]] = item
     store.service.spreadsheets().batchUpdate(
         spreadsheetId=store.spreadsheet_id,
-        body={"requests": schema_v2_migration_requests(properties, migrated_records)},
+        body={"requests": schema_v3_migration_requests(properties, migrated_records)},
     ).execute()
     store.verify_schema()
     config["schema_version"] = SCHEMA_VERSION
@@ -593,7 +701,7 @@ class GoogleSheetsStore:
                 includeGridData=False,
                 fields=(
                     "spreadsheetId,spreadsheetUrl,properties.title,developerMetadata,"
-                    "sheets.properties(sheetId,title,gridProperties)"
+                    "sheets(properties(sheetId,title,gridProperties),conditionalFormats)"
                 ),
             )
             .execute()
@@ -945,7 +1053,7 @@ def parser() -> argparse.ArgumentParser:
 
     commands.add_parser("doctor")
     commands.add_parser("format-workbook")
-    commands.add_parser("migrate-schema-v2")
+    commands.add_parser("migrate-schema-v3")
 
     for name in ("upsert-platform", "upsert-campaign", "upsert-submission", "append-event"):
         item = commands.add_parser(name)
@@ -990,9 +1098,9 @@ def main(argv: list[str] | None = None) -> int:
                     write_private_json(config_dir / "v1-sheets.json", config)
                     store.verify_schema()
                 output = config
-        elif args.command == "migrate-schema-v2":
+        elif args.command == "migrate-schema-v3":
             with writer_lock(config_dir):
-                output = migrate_schema_v2(config_dir)
+                output = migrate_schema_v3(config_dir)
         elif args.command == "doctor":
             store = load_store(config_dir)
             metadata = store.verify_schema()

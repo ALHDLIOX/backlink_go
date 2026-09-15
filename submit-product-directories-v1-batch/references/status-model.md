@@ -1,10 +1,10 @@
 # SPD V1 Batch status model
 
-Google Sheets is the authoritative V1 record store. The workbook schema version is `2` and contains exactly four worksheets. Use `scripts/sheets_record.py`; do not locate or write cells manually.
+Google Sheets is the authoritative V1 record store. The workbook schema version is `3` and contains exactly four worksheets. Use `scripts/sheets_record.py`; do not locate or write cells manually.
 
 ## Platforms
 
-One reusable platform row may serve multiple products. Required fields are platform ID, normalized domain, website name, canonical submission URL, route, account requirement, verification pattern, cost model, reciprocal requirement, availability, and last verification time. Source and notes are optional. The script owns row version and update time.
+One reusable platform row may serve multiple products. Required fields are platform ID, normalized domain, website name, canonical submission URL, route, account requirement, verification pattern, cost model, reciprocal requirement, availability, and last verification time. Source and notes are optional. The script owns row version. Human-facing fields appear before IDs and version metadata.
 
 Platform knowledge does not prove a product was submitted. Recheck changing availability, pricing, reciprocal requirements, terms, verification, and routes before reuse.
 
@@ -21,7 +21,7 @@ Required campaign controls are:
 
 The policy version represents the Skill's shared credential, evidence, deduplication, ambiguous-outcome, browser-routing, and anti-manipulation rules without copying those rules into every campaign row.
 
-The script owns created time, updated time, and row version.
+The script owns row version. Repeated generic created/updated timestamps are intentionally omitted; source-list and authorization records preserve campaign provenance.
 
 ## Submissions
 
@@ -37,7 +37,7 @@ Each submission preserves:
 - public listing URL and backend/mailbox/public-page checks;
 - last checked time and follow-up.
 
-The script owns created time, updated time, and row version. It verifies campaign and platform references before writing.
+The script owns row version. It verifies campaign and platform references before writing. Submit time and last checked remain because they have distinct operational meanings; generic created/updated timestamps are omitted.
 
 ## Events
 

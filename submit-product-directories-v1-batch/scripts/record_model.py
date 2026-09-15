@@ -9,8 +9,8 @@ from datetime import datetime
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
-SCHEMA_VERSION = "2"
-LEGACY_SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "3"
+LEGACY_SCHEMA_VERSION = "2"
 POLICY_VERSION = "spd-v1-policy-2"
 
 ALLOWED_STATUSES = {
@@ -69,19 +69,39 @@ SENSITIVE_QUERY_KEYS = {
 }
 
 PLATFORM_HEADERS = [
-    "platform_id", "platform_domain", "website_name", "canonical_submission_url",
-    "route", "account_required", "verification_pattern", "cost_model",
-    "reciprocal_requirement", "availability", "last_verified_at", "source",
-    "notes", "row_version", "updated_at",
+    "website_name", "platform_domain", "canonical_submission_url", "availability",
+    "cost_model", "account_required", "verification_pattern", "reciprocal_requirement",
+    "last_verified_at", "route", "source", "notes", "platform_id", "row_version",
 ]
 
 CAMPAIGN_HEADERS = [
+    "product_canonical_id", "canonical_url", "campaign_id", "source_urls",
+    "source_list_reference", "batch_authorization_reference", "execution_shard_size",
+    "policy_version", "spd_version", "row_version",
+]
+
+SUBMISSION_HEADERS = [
+    "platform_domain", "website", "status", "exact_result", "public_listing_url",
+    "follow_up", "verification_preflight", "submit_timestamp", "last_checked",
+    "queue_id", "product_canonical_id", "campaign_id", "platform_id", "route",
+    "account_alias", "idempotency_key", "legitimacy_gate", "authorization_reference",
+    "evidence_reference", "fields_entered", "fields_omitted", "agreements_subscriptions",
+    "backend_checked", "mailbox_checked", "public_page_checked", "execution_shard",
+    "execution_method", "execution_notes", "row_version",
+]
+
+EVENT_HEADERS = [
+    "event_id", "campaign_id", "queue_id", "idempotency_key", "timestamp",
+    "action", "result", "evidence_reference", "actor_alias",
+]
+
+LEGACY_CAMPAIGN_HEADERS = [
     "campaign_id", "spd_version", "product_canonical_id", "canonical_url",
     "source_list_reference", "source_urls", "batch_authorization_reference",
     "execution_shard_size", "policy_version", "created_at", "updated_at", "row_version",
 ]
 
-SUBMISSION_HEADERS = [
+LEGACY_SUBMISSION_HEADERS = [
     "campaign_id", "queue_id", "platform_id", "product_canonical_id", "website",
     "platform_domain", "route", "account_alias", "idempotency_key",
     "execution_shard", "execution_method", "execution_notes", "legitimacy_gate",
@@ -93,36 +113,13 @@ SUBMISSION_HEADERS = [
     "created_at", "updated_at", "row_version",
 ]
 
-EVENT_HEADERS = [
-    "event_id", "campaign_id", "queue_id", "idempotency_key", "timestamp",
-    "action", "result", "evidence_reference", "actor_alias",
-]
-
-LEGACY_CAMPAIGN_HEADERS = [
-    "campaign_id", "spd_version", "product_canonical_id", "canonical_url",
-    "source_list_reference", "source_urls", "batch_authorization_reference",
-    "execution_shard_size", "maximum_active_tabs", "host_platform",
-    "ui_environment", "available_control_capabilities", "browser_routing_policy",
-    "credential_policy", "evidence_policy", "duplicate_policy",
-    "ambiguous_outcome_policy", "ranking_manipulation_prohibited", "created_at",
-    "updated_at", "row_version",
-]
-
-LEGACY_SUBMISSION_HEADERS = [
-    "campaign_id", "queue_id", "platform_id", "product_canonical_id", "website",
-    "platform_domain", "route", "account_alias", "idempotency_key",
-    "execution_shard", "platform_capability_result", "requested_browser_constraint",
-    "selected_browser_surface", "execution_backend_session_alias",
-    "backend_selection_reason", "legitimacy_gate", "authorization_reference",
-    "status", "verification_preflight", "fields_entered", "fields_omitted",
-    "agreements_subscriptions", "submit_timestamp", "exact_result",
-    "evidence_reference", "public_listing_url", "backend_checked",
-    "mailbox_checked", "public_page_checked", "last_checked", "follow_up",
-    "created_at", "updated_at", "row_version",
-]
-
 LEGACY_TABLE_HEADERS = {
-    "Platforms": PLATFORM_HEADERS,
+    "Platforms": [
+        "platform_id", "platform_domain", "website_name", "canonical_submission_url",
+        "route", "account_required", "verification_pattern", "cost_model",
+        "reciprocal_requirement", "availability", "last_verified_at", "source",
+        "notes", "row_version", "updated_at",
+    ],
     "Campaigns": LEGACY_CAMPAIGN_HEADERS,
     "Submissions": LEGACY_SUBMISSION_HEADERS,
     "Events": EVENT_HEADERS,
@@ -178,27 +175,8 @@ def legacy_display_headers(tab_name: str) -> list[str]:
 
 
 def migrate_legacy_record(tab_name: str, record: dict[str, object]) -> dict[str, str]:
-    """Losslessly fold schema-v1 operational fields into the smaller v2 shape."""
-    if tab_name == "Campaigns":
-        migrated = {key: record.get(key, "") for key in CAMPAIGN_HEADERS}
-        migrated["policy_version"] = POLICY_VERSION
-    elif tab_name == "Submissions":
-        migrated = {key: record.get(key, "") for key in SUBMISSION_HEADERS}
-        capability = str(record.get("platform_capability_result", "")).strip()
-        surface = str(record.get("selected_browser_surface", "")).strip()
-        migrated["execution_method"] = surface or capability or "not recorded"
-        details = [
-            ("capability", capability),
-            ("browser request", str(record.get("requested_browser_constraint", "")).strip()),
-            ("session alias", str(record.get("execution_backend_session_alias", "")).strip()),
-            ("reason", str(record.get("backend_selection_reason", "")).strip()),
-        ]
-        migrated["execution_notes"] = "; ".join(
-            f"{label}: {value}" for label, value in details
-            if value and value.lower() not in {"none", "not applicable", "not specified"}
-        )
-    else:
-        migrated = {key: record.get(key, "") for key in TABLE_HEADERS[tab_name]}
+    """Reorder schema-v2 rows and remove redundant system timestamps."""
+    migrated = {key: record.get(key, "") for key in TABLE_HEADERS[tab_name]}
     return {key: str(value) for key, value in migrated.items()}
 
 DROPDOWNS = {
@@ -214,10 +192,6 @@ DROPDOWNS = {
 
 class RecordValidationError(ValueError):
     """Raised when a record cannot safely enter the workbook."""
-
-
-def now_iso() -> str:
-    return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
 def normalize_url(value: str) -> str:
@@ -296,17 +270,13 @@ def _require(record: dict[str, object], fields: list[str], kind: str) -> None:
         raise RecordValidationError(f"{kind} missing required fields: {', '.join(missing)}")
 
 
-def _validate_managed_fields(record: dict[str, object], *, has_created_at: bool) -> None:
+def _validate_managed_fields(record: dict[str, object]) -> None:
     if "row_version" in record:
         try:
             if int(record["row_version"]) < 1:
                 raise ValueError
         except (TypeError, ValueError) as exc:
             raise RecordValidationError("row_version must be a positive integer") from exc
-    if "updated_at" in record:
-        _assert_iso(record["updated_at"], "updated_at")
-    if has_created_at and "created_at" in record:
-        _assert_iso(record["created_at"], "created_at")
 
 
 def computed_idempotency_key(record: dict[str, object]) -> str:
@@ -335,11 +305,11 @@ def validate_platform(record: dict[str, object]) -> None:
     if url_domain != str(record["platform_domain"]).lower():
         raise RecordValidationError("platform_domain must match canonical_submission_url")
     _assert_iso(record["last_verified_at"], "last_verified_at", allow_sentinel=True)
-    _validate_managed_fields(record, has_created_at=False)
+    _validate_managed_fields(record)
 
 
 def validate_campaign(record: dict[str, object]) -> None:
-    generated = {"created_at", "updated_at", "row_version"}
+    generated = {"row_version"}
     _require(record, [field for field in CAMPAIGN_HEADERS if field not in generated], "campaign")
     _check_sensitive(record)
     if record["spd_version"] != "V1 Batch":
@@ -357,7 +327,7 @@ def validate_campaign(record: dict[str, object]) -> None:
     source_urls = [item.strip() for item in str(record["source_urls"]).splitlines() if item.strip()]
     if not source_urls or any(not urlsplit(item).hostname for item in source_urls):
         raise RecordValidationError("source_urls must contain one or more newline-separated public URLs")
-    _validate_managed_fields(record, has_created_at=True)
+    _validate_managed_fields(record)
 
 
 def validate_submission_state(record: dict[str, object]) -> None:
@@ -406,7 +376,7 @@ def validate_submission_state(record: dict[str, object]) -> None:
 
 
 def validate_submission(record: dict[str, object]) -> None:
-    generated = {"created_at", "updated_at", "row_version"}
+    generated = {"row_version"}
     _require(record, [field for field in SUBMISSION_HEADERS if field not in generated], "submission")
     _check_sensitive(record)
     normalized = normalize_url(str(record["website"]))
@@ -417,7 +387,7 @@ def validate_submission(record: dict[str, object]) -> None:
     if record["idempotency_key"] != expected_key:
         raise RecordValidationError(f"idempotency_key must equal {expected_key}")
     validate_submission_state(record)
-    _validate_managed_fields(record, has_created_at=True)
+    _validate_managed_fields(record)
 
 
 def validate_event(record: dict[str, object]) -> None:
@@ -432,7 +402,6 @@ def prepare_record(
     existing: dict[str, object] | None = None,
 ) -> dict[str, object]:
     prepared = {key: value for key, value in record.items() if value is not None}
-    timestamp = now_iso()
     if kind == "platform":
         validate_platform(prepared)
         headers = PLATFORM_HEADERS
@@ -448,13 +417,9 @@ def prepare_record(
     else:
         raise RecordValidationError(f"unknown record kind: {kind}")
     if existing:
-        prepared["created_at"] = existing.get("created_at", timestamp)
         prepared["row_version"] = int(existing.get("row_version", 0) or 0) + 1
     else:
-        if "created_at" in headers:
-            prepared["created_at"] = timestamp
         prepared["row_version"] = 1
-    prepared["updated_at"] = timestamp
     return {key: str(prepared.get(key, "")) for key in headers}
 
 
@@ -624,7 +589,8 @@ def export_campaign_markdown(
     ]
     lines = [
         f"# {campaign['campaign_id']} — SPD V1 Batch Record", "",
-        f"Last updated: {campaign['updated_at']}", "", "## Campaign controls", "",
+        f"Last checked: {max((str(item.get('last_checked', '')) for item in submissions), default='')}",
+        "", "## Campaign controls", "",
     ]
     lines.extend(f"- {label}: {campaign.get(key, '')}" for label, key in control_labels)
     lines.extend(["", "## Source list", ""])

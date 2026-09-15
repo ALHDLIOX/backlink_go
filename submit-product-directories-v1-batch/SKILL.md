@@ -23,9 +23,9 @@ description: SPD V1 Batch. Process large, user-supplied sets of legitimate produ
 
 Google Sheets is the only writable V1 record store. Use the bundled CLI for authentication, initialization, validation, lookup, writes, audits, and Markdown exports. Do not call a Google Sheets connector, read its plugin documentation, hand-author spreadsheet requests, or maintain a second writable Markdown record. Stop on missing OAuth, unavailable API access, or schema drift.
 
-Workbook row-one labels are readable Chinese business names. JSON inputs and internal validation continue to use the documented snake_case field keys. Run `uv run python scripts/sheets_record.py format-workbook` to restore the standard labels, gridlines, frozen panes, widths, and header styling after manual formatting changes.
+Workbook row-one labels are readable Chinese business names, with audit-critical columns first and system fields last. Fixed-choice cells use low-saturation status colors; other cells use a light neutral background. JSON inputs and internal validation continue to use the documented snake_case field keys. Run `uv run python scripts/sheets_record.py format-workbook` to restore labels, gridlines, frozen panes, widths, and styling after manual formatting changes.
 
-The current workbook schema is version 2. If `doctor` reports a configured schema-v1 workbook, run `uv run python scripts/sheets_record.py migrate-schema-v2` once; the bundled migration preserves existing rows and compacts the campaign and execution fields.
+The current workbook schema is version 3. If `doctor` reports a configured schema-v2 workbook, run `uv run python scripts/sheets_record.py migrate-schema-v3` once; the bundled migration preserves existing rows, removes redundant system timestamps, and reorders columns for human review.
 
 Never invent product, company, founder, pricing, address, launch, ownership, contact, or legal facts. Keep optional unknowns blank and block required unknowns.
 

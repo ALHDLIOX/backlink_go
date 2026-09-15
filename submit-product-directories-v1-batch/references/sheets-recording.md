@@ -14,13 +14,13 @@ uv run python scripts/sheets_record.py init --title "Backlink Operations"
 uv run python scripts/sheets_record.py doctor
 ```
 
-Existing schema-v1 workbooks must be upgraded once before `doctor` or any write:
+Existing schema-v2 workbooks must be upgraded once before `doctor` or any write:
 
 ```bash
-uv run python scripts/sheets_record.py migrate-schema-v2
+uv run python scripts/sheets_record.py migrate-schema-v3
 ```
 
-The migration preserves existing rows, folds repeated campaign policies into `spd-v1-policy-2`, combines the five browser/backend columns into execution method and notes, and updates the workbook atomically.
+The migration preserves existing rows, removes redundant generic created/updated timestamps, moves audit-critical fields to the left, applies low-fatigue formatting and status colors, and updates the workbook atomically.
 
 To restore the workbook's readable Chinese headers and standard presentation:
 
@@ -63,7 +63,7 @@ The script uses one local writer lock. Do not run record writes concurrently on 
 
 ## JSON payloads
 
-Use exact snake_case keys. Generated `created_at`, `updated_at`, and `row_version` fields must be omitted from input. Creating a row does not need a version. Replaying identical content returns `unchanged`. To change an existing row, include `expected_row_version` with the last version returned by the CLI; a stale or missing version stops the update.
+Use exact snake_case keys. The generated `row_version` field must be omitted from input. Creating a row does not need a version. Replaying identical content returns `unchanged`. To change an existing row, include `expected_row_version` with the last version returned by the CLI; a stale or missing version stops the update.
 
 ### Platform
 

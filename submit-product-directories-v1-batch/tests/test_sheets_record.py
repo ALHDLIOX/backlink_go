@@ -209,7 +209,13 @@ class WorkbookSchemaTests(unittest.TestCase):
         sheet_updates = [item["updateSheetProperties"] for item in requests if "updateSheetProperties" in item]
         self.assertEqual(len(sheet_updates), 4)
         self.assertTrue(all(not item["properties"]["gridProperties"]["hideGridlines"] for item in sheet_updates))
-        self.assertEqual(MODEL.display_headers("Platforms")[0], "平台编号")
+        self.assertTrue(all(item["properties"]["gridProperties"]["frozenColumnCount"] == 2 for item in sheet_updates))
+        self.assertEqual(MODEL.display_headers("Platforms")[0], "平台名称")
+        color_rules = [item for item in requests if "addConditionalFormatRule" in item]
+        self.assertEqual(
+            len(color_rules),
+            sum(len(values) for values in SHEETS.fixed_option_colors().values()),
+        )
 
     def test_create_and_verify_with_fake_google_service(self):
         class Request:
@@ -391,32 +397,23 @@ class ValidationTests(unittest.TestCase):
         value.pop("notes")
         MODEL.validate_platform(value)
 
-    def test_legacy_fields_are_folded_without_losing_operational_context(self):
+    def test_legacy_rows_are_reordered_and_redundant_times_removed(self):
         legacy_campaign = {key: "legacy" for key in MODEL.LEGACY_CAMPAIGN_HEADERS}
         migrated_campaign = MODEL.migrate_legacy_record("Campaigns", legacy_campaign)
-        self.assertEqual(migrated_campaign["policy_version"], MODEL.POLICY_VERSION)
-        self.assertNotIn("credential_policy", migrated_campaign)
+        self.assertEqual(migrated_campaign["policy_version"], "legacy")
+        self.assertNotIn("created_at", migrated_campaign)
+        self.assertNotIn("updated_at", migrated_campaign)
 
-        legacy_submission = {key: "" for key in MODEL.LEGACY_SUBMISSION_HEADERS}
-        legacy_submission.update(
-            {
-                "selected_browser_surface": "connected browser",
-                "platform_capability_result": "supported",
-                "requested_browser_constraint": "Chrome",
-                "execution_backend_session_alias": "session-main",
-                "backend_selection_reason": "structured control",
-            }
-        )
+        legacy_submission = {key: key for key in MODEL.LEGACY_SUBMISSION_HEADERS}
         migrated_submission = MODEL.migrate_legacy_record("Submissions", legacy_submission)
-        self.assertEqual(migrated_submission["execution_method"], "connected browser")
-        self.assertIn("capability: supported", migrated_submission["execution_notes"])
-        self.assertIn("browser request: Chrome", migrated_submission["execution_notes"])
-        self.assertNotIn("selected_browser_surface", migrated_submission)
+        self.assertEqual(migrated_submission["execution_method"], "execution_method")
+        self.assertNotIn("created_at", migrated_submission)
+        self.assertNotIn("updated_at", migrated_submission)
 
-    def test_schema_v2_migration_request_resizes_compact_tables_and_updates_metadata(self):
+    def test_schema_v3_migration_request_resizes_tables_and_updates_metadata(self):
         properties = {name: {"sheetId": index} for index, name in enumerate(MODEL.TABLE_HEADERS, start=1)}
         records = {name: [] for name in MODEL.TABLE_HEADERS}
-        requests = SHEETS.schema_v2_migration_requests(properties, records)
+        requests = SHEETS.schema_v3_migration_requests(properties, records)
         sizes = {
             item["updateSheetProperties"]["properties"]["sheetId"]:
             item["updateSheetProperties"]["properties"]["gridProperties"]["columnCount"]
@@ -427,7 +424,7 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(sizes[2], len(MODEL.CAMPAIGN_HEADERS))
         self.assertEqual(sizes[3], len(MODEL.SUBMISSION_HEADERS))
         metadata = [item for item in requests if "updateDeveloperMetadata" in item]
-        self.assertEqual(metadata[0]["updateDeveloperMetadata"]["developerMetadata"]["metadataValue"], "2")
+        self.assertEqual(metadata[0]["updateDeveloperMetadata"]["developerMetadata"]["metadataValue"], "3")
 
     def test_tracking_parameters_are_removed_but_route_query_remains(self):
         value = MODEL.normalize_url("HTTPS://Directory.Test/submit/?category=ai&utm_source=x#top")

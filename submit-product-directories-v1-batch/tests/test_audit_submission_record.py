@@ -15,7 +15,7 @@ SPEC.loader.exec_module(MODULE)
 def record(site_blocks: str) -> str:
     return f"""# Campaign — SPD V1 Batch Record
 
-Last updated: 2026-08-18T16:00:00+08:00
+Last checked: 2026-08-18T16:00:00+08:00
 
 ## Campaign controls
 
