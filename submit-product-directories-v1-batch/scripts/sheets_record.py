@@ -460,7 +460,7 @@ def schema_v8_migration_requests(
             "sheetId": next_sheet_id,
             "title": tab_name,
             "gridProperties": {
-                "rowCount": 1000,
+                "rowCount": max(1000, len(records.get(tab_name, [])) + 1),
                 "columnCount": len(headers),
                 "frozenRowCount": 1,
             },
@@ -852,12 +852,21 @@ class GoogleSheetsStore:
         return result.get("values", [])
 
     def records(self, tab_name: str) -> list[dict[str, str]]:
+        return [record for _, record in self.records_with_rows(tab_name)]
+
+    def records_with_rows(self, tab_name: str) -> list[tuple[int, dict[str, str]]]:
         headers = TABLE_HEADERS[tab_name]
         values = self._read_values(f"'{tab_name}'!A2:{column_letter(len(headers))}")
-        return rows_to_records(headers, values)
+        result = []
+        for row_number, row in enumerate(values, start=2):
+            if not any(str(value).strip() for value in row):
+                continue
+            padded = row + [""] * (len(headers) - len(row))
+            result.append((row_number, {header: str(padded[index]) for index, header in enumerate(headers)}))
+        return result
 
     def find(self, tab_name: str, key_field: str, key_value: str) -> tuple[int, dict[str, str]] | None:
-        for offset, record in enumerate(self.records(tab_name), start=2):
+        for offset, record in self.records_with_rows(tab_name):
             if record.get(key_field) == key_value:
                 return offset, record
         return None
@@ -891,6 +900,41 @@ def load_store(config_dir: Path, schema_version: str = SCHEMA_VERSION) -> Google
     if config.get("schema_version") != schema_version or not config.get("spreadsheet_id"):
         raise RecordValidationError("workbook config is invalid or unsupported")
     return GoogleSheetsStore(build_service(config_dir), str(config["spreadsheet_id"]))
+
+
+def doctor(config_dir: Path) -> dict[str, object]:
+    config_path = config_dir / "v1-sheets.json"
+    require_private_file(config_path)
+    config = read_json_file(config_path)
+    schema_version = str(config.get("schema_version", ""))
+    table_headers = {
+        LEGACY_SCHEMA_VERSION: LEGACY_TABLE_HEADERS,
+        "5": SCHEMA_V5_TABLE_HEADERS,
+        "6": SCHEMA_V6_TABLE_HEADERS,
+        PREVIOUS_SCHEMA_VERSION: SCHEMA_V7_TABLE_HEADERS,
+        SCHEMA_VERSION: TABLE_HEADERS,
+    }.get(schema_version)
+    if table_headers is None:
+        raise RecordValidationError("workbook config is invalid or unsupported")
+    store = load_store(config_dir, schema_version)
+    metadata = store.verify_schema(schema_version, table_headers)
+    current = schema_version == SCHEMA_VERSION
+    return {
+        "healthy": current,
+        "migration_required": not current,
+        "spreadsheet_id": store.spreadsheet_id,
+        "title": metadata.get("properties", {}).get("title", ""),
+        "schema_version": schema_version,
+        "target_schema_version": SCHEMA_VERSION,
+        "worksheets": list(table_headers),
+    }
+
+
+def records_with_rows(store: object, tab_name: str) -> list[tuple[int, dict[str, str]]]:
+    method = getattr(store, "records_with_rows", None)
+    if callable(method):
+        return method(tab_name)
+    return list(enumerate(store.records(tab_name), start=2))
 
 
 def records_equal(headers: list[str], expected: dict[str, object], actual: dict[str, object]) -> bool:
@@ -959,16 +1003,17 @@ def upsert(store: GoogleSheetsStore, kind: str, payload: dict[str, Any]) -> dict
     }
     if kind == "campaign":
         payload = normalize_campaign_input(payload)
+    payload = compact_record_timestamps(payload)
     tab_name, key_field, headers, validator = mapping[kind]
     store.verify_schema()
     key_value = str(payload.get(key_field, ""))
     if not key_value:
         raise RecordValidationError(f"{key_field} is required")
     validator(payload)
-    payload = compact_record_timestamps(payload)
-    existing_records = store.records(tab_name)
+    existing_rows = records_with_rows(store, tab_name)
+    existing_records = [record for _, record in existing_rows]
     matches = [
-        (index, record) for index, record in enumerate(existing_records, start=2)
+        (index, record) for index, record in existing_rows
         if record.get(key_field) == key_value
     ]
     if len(matches) > 1:
@@ -1050,9 +1095,10 @@ def append_event(store: GoogleSheetsStore, payload: dict[str, Any]) -> dict[str,
     store.verify_schema()
     prepared = prepare_record("event", payload)
     event_id = prepared["event_id"]
-    event_records = store.records("Events")
+    event_rows = records_with_rows(store, "Events")
+    event_records = [record for _, record in event_rows]
     matches = [
-        (index, record) for index, record in enumerate(event_records, start=2)
+        (index, record) for index, record in event_rows
         if record.get("event_id") == event_id
     ]
     if len(matches) > 1:
@@ -1228,15 +1274,7 @@ def main(argv: list[str] | None = None) -> int:
             with writer_lock(config_dir):
                 output = migrate_schema_v8(config_dir)
         elif args.command == "doctor":
-            store = load_store(config_dir)
-            metadata = store.verify_schema()
-            output = {
-                "healthy": True,
-                "spreadsheet_id": store.spreadsheet_id,
-                "title": metadata.get("properties", {}).get("title", ""),
-                "schema_version": SCHEMA_VERSION,
-                "worksheets": list(TABLE_HEADERS),
-            }
+            output = doctor(config_dir)
         elif args.command == "format-workbook":
             with writer_lock(config_dir):
                 output = format_workbook(load_store(config_dir))

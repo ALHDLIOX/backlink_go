@@ -203,6 +203,8 @@ def compact_record_timestamps(record: dict[str, object]) -> dict[str, str]:
 
 def _empty(v: object) -> bool: return not str(v or "").strip()
 def _meaningful(v: object) -> bool: return str(v or "").strip().lower() not in {"", "not applicable", "not checked", "unknown", "none", UNVERIFIED_BACKLINK}
+def _meaningful_action_time(v: object) -> bool:
+    return _meaningful(v) and str(v).strip().lower() not in {"not submitted", "not published"}
 def _require(record: dict[str, object], fields: list[str], kind: str) -> None:
     missing = [f for f in fields if _empty(record.get(f))]
     if missing: raise RecordValidationError(f"{kind} missing required fields: {', '.join(missing)}")
@@ -254,14 +256,15 @@ def validate_placement_state(r: dict[str, object]) -> None:
     if status not in ALLOWED_STATUSES: raise RecordValidationError("invalid placement status")
     if status in EXECUTED and not _meaningful(r.get("authorization_reference")): raise RecordValidationError("executed placement requires authorization_reference")
     if status in {"submitted", "submitted for review", "scheduled", "awaiting approval", "awaiting email verification"}:
-        if not all(_meaningful(r.get(f)) for f in ("action_at", "exact_result", "evidence_reference")):
+        if not _meaningful_action_time(r.get("action_at")) or not all(_meaningful(r.get(f)) for f in ("exact_result", "evidence_reference")):
             raise RecordValidationError("submitted or pending placement requires action_at, exact_result, and evidence_reference")
     if status == "published":
         for f in ("public_url", "backlink_url", "anchor_text", "exact_result", "verification", "action_at", "last_checked", "evidence_reference"):
             if f == "action_at" and str(r.get(f, "")).strip().lower() == "unknown": continue
-            if not _meaningful(r.get(f)): raise RecordValidationError(f"published placement requires {f}")
+            if f == "action_at" and not _meaningful_action_time(r.get(f)): raise RecordValidationError(f"published placement requires {f}")
+            if f != "action_at" and not _meaningful(r.get(f)): raise RecordValidationError(f"published placement requires {f}")
     if status == "outcome unknown" and not _meaningful(r.get("verification")): raise RecordValidationError("outcome unknown requires a concrete verification summary")
-    if status == "removed" and not all(_meaningful(r.get(f)) for f in ("public_url", "action_at", "verification")):
+    if status == "removed" and (not _meaningful_action_time(r.get("action_at")) or not all(_meaningful(r.get(f)) for f in ("public_url", "verification"))):
         raise RecordValidationError("removed placement requires prior public URL, action time, and verification")
 
 def validate_placement(r: dict[str, object]) -> None:
@@ -370,6 +373,12 @@ def audit_records(*, campaigns: list[dict[str, object]], placements: list[dict[s
     for name, items, key in (("campaign_id", campaigns, "campaign_id"), ("platform_id", platforms, "platform_id"), ("placement_id", placements, "placement_id"), ("event_id", events, "event_id")):
         counts = Counter(str(i.get(key, "")) for i in items); errors.extend(f"duplicate {name}: {v}" for v, c in counts.items() if v and c > 1)
     counts = Counter(str(i.get("idempotency_key", "")) for i in placements); errors.extend(f"duplicate idempotency_key: {v}" for v, c in counts.items() if v and c > 1)
+    for kind, items, key in (("platform", platforms, "platform_id"), ("campaign", campaigns, "campaign_id"), ("placement", placements, "placement_id")):
+        for item in items:
+            try:
+                if int(str(item.get("row_version", ""))) < 1: raise ValueError
+            except (TypeError, ValueError):
+                errors.append(f"{kind} {item.get(key, '')}: row_version must be a positive integer")
     cmap = {str(c.get("campaign_id", "")): c for c in selected_campaigns}; pmap = {str(p.get("platform_id", "")): p for p in platforms}
     pairs = set(); status_counts: Counter[str] = Counter()
     for item in selected:

@@ -9,6 +9,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 SCRIPTS = Path(__file__).parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
@@ -98,6 +99,14 @@ class SchemaTests(unittest.TestCase):
         added = [r["addSheet"]["properties"]["title"] for r in requests if "addSheet" in r]
         self.assertEqual(added, ["Placements"])
 
+    def test_v6_migration_sizes_placements_for_all_rows(self):
+        props = {n: {"sheetId": i} for i, n in enumerate(MODEL.SCHEMA_V6_TABLE_HEADERS, 1)}
+        records = {n: [] for n in MODEL.TABLE_HEADERS}
+        records["Placements"] = [{} for _ in range(1200)]
+        requests = SHEETS.schema_v8_migration_requests(props, records, MODEL.SCHEMA_V6_TABLE_HEADERS)
+        added = next(item["addSheet"]["properties"] for item in requests if "addSheet" in item)
+        self.assertEqual(added["gridProperties"]["rowCount"], 1201)
+
     def test_v7_migration_reorders_existing_placement_without_deleting_it(self):
         props = {n: {"sheetId": i} for i, n in enumerate(MODEL.SCHEMA_V7_TABLE_HEADERS, 1)}
         records = {n: [] for n in MODEL.TABLE_HEADERS}
@@ -114,6 +123,12 @@ class ValidationTests(unittest.TestCase):
     def test_timestamp_is_compact(self):
         prepared = MODEL.prepare_record("placement", placement(action_at="2026-09-15T10:00:40+08:00", last_checked="2026-09-15T10:01:00+08:00"))
         self.assertEqual(prepared["action_at"], "2026-09-15 10:00")
+
+    def test_completed_states_reject_non_action_time_sentinels(self):
+        for status, sentinel in (("submitted", "not submitted"), ("published", "not published")):
+            with self.subTest(status=status, sentinel=sentinel):
+                with self.assertRaisesRegex(MODEL.RecordValidationError, "action_at"):
+                    MODEL.validate_placement(placement(status=status, action_at=sentinel))
 
     def test_anchor_text_is_required_for_published(self):
         with self.assertRaisesRegex(MODEL.RecordValidationError, "anchor_text"):
@@ -200,6 +215,14 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(result["row_version"], "2")
         self.assertEqual(store.tables["Placements"][0]["anchor_text"], "Product One")
 
+    def test_live_upsert_compacts_timestamp_before_validation(self):
+        store = self.seeded()
+        queued = placement(status="not attempted", public_url="not applicable", backlink_url="https://product.test/",
+            anchor_text="not checked", exact_result="not attempted", verification="not checked",
+            action_at="not submitted", last_checked="2026-09-15T10:01:40+08:00", evidence_reference="not applicable")
+        SHEETS.upsert(store, "placement", queued)
+        self.assertEqual(store.tables["Placements"][0]["last_checked"], "2026-09-15 10:01")
+
     def test_executed_write_needs_prior_event(self):
         store = self.seeded()
         with self.assertRaisesRegex(MODEL.RecordValidationError, "prior linked event"):
@@ -231,7 +254,44 @@ class StoreTests(unittest.TestCase):
             self.assertFalse(result["valid"])
             self.assertTrue(any("event event-orphan: unknown idempotency_key" in error for error in result["errors"]))
 
+    def test_audit_rejects_invalid_row_versions(self):
+        store = self.seeded()
+        store.tables["Platforms"][0]["row_version"] = "0"
+        store.tables["Campaigns"][0]["row_version"] = "abc"
+        store.tables["Placements"].append(MODEL.prepare_record("placement", placement(
+            status="not attempted", public_url="not applicable", anchor_text="not checked",
+            exact_result="not attempted", verification="not checked", action_at="not submitted",
+            evidence_reference="not applicable")))
+        store.tables["Placements"][0]["row_version"] = ""
+        result = SHEETS.workbook_audit(store, None)
+        self.assertFalse(result["valid"])
+        self.assertEqual(sum("row_version must be a positive integer" in error for error in result["errors"]), 3)
+
+
+class GoogleStoreRowTests(unittest.TestCase):
+    def test_find_preserves_physical_rows_across_blanks(self):
+        store = object.__new__(SHEETS.GoogleSheetsStore)
+        store._read_values = lambda _: [["first"], [], ["target"]]
+        with patch.dict(MODEL.TABLE_HEADERS, {"Test": ["key"]}):
+            self.assertEqual(store.find("Test", "key", "target")[0], 4)
+
+
 class CliTests(unittest.TestCase):
+    def test_doctor_reports_legacy_schema_as_migration_required(self):
+        with tempfile.TemporaryDirectory() as root:
+            config_dir = Path(root) / "config"
+            SHEETS.write_private_json(config_dir / "v1-sheets.json", {"schema_version": "6", "spreadsheet_id": "sheet-1"})
+            fake_store = type("FakeStore", (), {
+                "spreadsheet_id": "sheet-1",
+                "verify_schema": lambda self, version, headers: {"properties": {"title": "Legacy"}},
+            })()
+            with patch.object(SHEETS, "load_store", return_value=fake_store) as load:
+                result = SHEETS.doctor(config_dir)
+            load.assert_called_once_with(config_dir, "6")
+            self.assertFalse(result["healthy"])
+            self.assertTrue(result["migration_required"])
+            self.assertEqual(result["schema_version"], "6")
+            self.assertEqual(result["target_schema_version"], MODEL.SCHEMA_VERSION)
     def test_dry_run_upsert_placement_never_loads_google(self):
         with tempfile.TemporaryDirectory() as root:
             source = Path(root) / "record.json"; source.write_text(json.dumps(placement()), encoding="utf-8")
