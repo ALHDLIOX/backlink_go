@@ -1,89 +1,27 @@
-# SPD V1 Batch status model
+# Backlink Operations schema 8
 
-## Required campaign controls
+Google Sheets is the authoritative V1 record store. Schema 8 has four worksheets: `Platforms`, `Campaigns`, `Placements`, and append-only `Events`. Directory, article, and social execution lanes all write the same Placement model. Business time is `YYYY-MM-DD HH:MM`.
 
-- SPD version: `V1 Batch`
-- Campaign ID and last-updated timestamp
-- Product canonical ID and canonical URL
-- Source-list reference
-- Batch authorization reference
-- Execution-shard size and maximum active tabs
-- Host platform and UI environment
-- Available control capabilities
-- Browser-routing policy
-- Credential and evidence policy
-- Duplicate and ambiguous-outcome policy
+## Platforms and Campaigns
 
-## Required site fields
+`Platforms` stores reusable access facts: name/domain, canonical entry, availability, cost, account and verification requirements, reciprocal requirement, route, source, notes, ID, and row version. It does not store a platform/content type.
 
-- Queue ID
-- Website and platform domain
-- Route and account alias
-- Idempotency key
-- Execution shard
-- Platform capability result
-- Requested browser constraint
-- Selected browser surface
-- Execution backend/session alias
-- Backend selection reason
-- Legitimacy gate
-- Authorization reference
-- Status
-- Verification preflight
-- Fields entered and omitted
-- Agreements and subscriptions
-- Submit timestamp
-- Exact result
-- Evidence reference
-- Last checked
-- Follow-up
+`Campaigns` stores product identity, canonical URL, sources, authorization reference, shard size, policy/workflow version, ID, and row version. It does not store a campaign type.
 
-## Canonical statuses
+## Placements
 
-- `not attempted`
-- `form in progress`
-- `draft saved`
-- `submitted`
-- `submission outcome unknown`
-- `awaiting approval`
-- `awaiting email verification`
-- `published`
-- `blocked — manual verification`
-- `blocked — missing verified data`
-- `blocked — account or email policy`
-- `unavailable`
-- `paid-only`
-- `ineligible`
-- `duplicate — no action`
-- `terminated by user`
+The product ID is the first column so records can be grouped visually by product. Human-review columns then follow: platform domain, operation page, status, public page, actual backlink, anchor text, exact result, follow-up, verification summary, action time, and last check. System columns follow: placement/queue/campaign/platform IDs, route, account alias, idempotency key, authorization/evidence references, execution method/notes, and row version.
 
-## Verification states
+Do not store titles, content bodies, media or Board/channel details, AI labels, split UTM fields, platform/record types, `rel`, Canonical policy, content fingerprints, or agreement/subscription details. A full backlink URL may naturally include tracking parameters; there are no separate UTM columns.
 
-- `not checked`
-- `automatic verification passed`
-- `awaiting manual verification`
-- `manual verification completed`
-- `verification unavailable before form`
-- `verification expired/reset`
-- `no verification presented`
-- `deferred by user`
+The idempotency key is exactly `platform_domain|product_canonical_id|account_alias|route|placement_id`. A published result requires a public URL, actual backlink URL, anchor text, exact result, verification summary, action time, last-check time, and evidence. For a visual/link card without textual linked words, use `not applicable — image or link card`; do not invent an anchor.
 
-## Invariants
+`platform_domain` is a bare hostname. The canonical platform entry and Placement operation page must use that hostname (treating `www` as equivalent) or one of its subdomains. A legacy migration never substitutes the campaign target URL for an observed backlink. If an old published row lacks an observed outbound URL, migrate it as `outcome unknown` with `not checked — no public backlink verified` and require public-page revalidation.
 
-- Use `submitted` only with a submit timestamp, exact server acknowledgment, and evidence reference.
-- Use `published` only after checking a public listing URL.
-- Use `submission outcome unknown` after an ambiguous final action; do not retry until backend, mailbox, and public-page checks are recorded.
-- Keep `not attempted` free of entered listing fields, agreements, and submit timestamps.
-- Do not start or complete a form while verification is unresolved unless the site exposes verification only after mandatory form fields and the exception is recorded.
-- Do not execute a failed legitimacy gate or missing/expired authorization.
-- Keep idempotency keys unique across the campaign.
-- Use only `windows`, `macos`, `linux`, or `other` for Host platform. A desktop backend must declare support for that platform; otherwise use another compatible route or handoff.
-- Treat registration, login, draft save, navigation, a click, or a generic thank-you page as insufficient evidence of submission.
-- Never store secrets, raw contact data, private session IDs, or tokenized authentication URLs in the shareable record.
+Statuses are: `not attempted`, `in progress`, `draft saved`, `submitted`, `submitted for review`, `scheduled`, `awaiting approval`, `awaiting email verification`, `published`, `outcome unknown`, blocked states, `rejected`, `removed`, `unavailable`, `paid-only`, `ineligible`, `duplicate — no action`, and `terminated by user`.
 
-## Audit commands
+## Events and audit
 
-```bash
-python3 scripts/audit_submission_record.py path/to/record.md
-python3 scripts/audit_submission_record.py path/to/record.md --json
-```
+Events contain event ID, campaign/queue/idempotency linkage, minute timestamp, action, result, evidence, and actor alias. They do not carry a type because every event resolves to one Placement. Events append only; identical replay is idempotent and conflicting reuse stops.
+
+Executed Placements require a prior linked Event. Updates require the current `expected_row_version`. The audit validates IDs, queue uniqueness, campaign/product/platform linkage, status evidence, event order, privacy, and row versions.

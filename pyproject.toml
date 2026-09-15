@@ -1,0 +1,16 @@
+[project]
+name = "backlink-go-dev"
+version = "0.1.0"
+description = "Local validation environment for the backlink-go skills"
+requires-python = ">=3.11"
+dependencies = [
+  "idna>=3.10",
+]
+
+[dependency-groups]
+dev = [
+  "google-api-python-client>=2.181.0",
+  "google-auth-httplib2>=0.2.0",
+  "google-auth-oauthlib>=1.2.2",
+  "PyYAML>=6.0.2",
+]

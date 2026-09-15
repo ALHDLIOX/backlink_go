@@ -1,4 +1,4 @@
 interface:
   display_name: "SPD V1 Batch"
   short_description: "High-throughput directory queue and submission workflow"
-  default_prompt: "Use $submit-product-directories-v1-batch to normalize, shard, verify, and process this authorized directory list with resumable records."
+  default_prompt: "Use $submit-product-directories-v1-batch to normalize, shard, verify, and process this authorized directory list, recording state through its bundled Google Sheets CLI."

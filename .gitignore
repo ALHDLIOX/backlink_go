@@ -6,6 +6,23 @@ bin-release/
 
 # Other files and folders
 .settings/
+.venv/
+__pycache__/
+*.py[cod]
+.DS_Store
+
+# Local OAuth and Google Sheets application state
+client_secret*.json
+credentials.json
+google-oauth-client.json
+google-token.json
+token.json
+v1-sheets.json
+v1-sheets.lock
+
+# Project-local private runtime data (aliases may contain real email addresses)
+.backlink-go/private/
+.backlink-go/runtime/
 
 # Executables
 *.swf

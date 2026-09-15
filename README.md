@@ -21,7 +21,8 @@
 
 | 内容 | 适合场景 | 核心特点 |
 |---|---|---|
-| [`SPD V1 Batch`](submit-product-directories-v1-batch/SKILL.md) | 已经有一批合法、相关的目录 URL，希望用 Codex 批量推进 | URL 规范化、去重、分片、验证优先、逐站提交、断点恢复、吞吐统计 |
+| [`Backlink Operations V1`](backlink-operations-v1/SKILL.md) | 同一批目标里既有产品目录，也有 Blogger、Dev.to、Hashnode、Substack、Medium 等长文平台 | 自动分流目录/文章、临时写作、授权发布、统一 Google Sheets 记录与审计 |
+| [`SPD V1 Batch`](submit-product-directories-v1-batch/SKILL.md) | 已经有一批合法、相关的目录 URL，希望用 Codex 批量推进 | URL 规范化、去重、分片、验证优先、逐站提交、Google Sheets 记录、断点恢复 |
 | [`SPD V2 Quality`](submit-product-directories-v2-quality/SKILL.md) | 希望 Codex 按顺序少量提交，更重视渠道质量和长期价值 | 每批最多 10 个站点、质量门槛、逐动作授权、证据记录、发布后质量检查 |
 | [`writer`](writer/SKILL.md) | 官网博客、教程、对比、榜单、解释文等通用 SEO 内容 | 选题、提纲、事实核查、SEO 审计、改写、humanization、图片与文件打包 |
 | [`linkedin-writer`](writer/linkedin-writer/SKILL.md) | LinkedIn Article、newsletter、B2B 长文 | LinkedIn 话题研究、商务深度、专业观点、SEO 设置和发布包 |
@@ -44,6 +45,8 @@
 - 按字段长度复用已批准的产品介绍，但保持品牌、网址和事实一致；
 - 在同一浏览器配置中逐站提交，每完成一个站点就先写入结果，再移动队列游标；
 - 记录草稿、等待验证、等待审核、已发布、结果未知、失败和排除项，方便中断后继续。
+
+V1 使用自带的 Python CLI 通过 Google Sheets API 直接维护一个 `Backlink Operations` 工作簿，包含 `Platforms`、`Campaigns`、统一的 `Placements` 和追加式 `Events`。目录、文章和社交结果使用同一张记录表，重点保存实际外链与锚文本。Google Sheets 是唯一写入源；Markdown 只作为按需导出。
 
 “批量”指的是批量整理、分片和推进队列，不代表无节制并发，更不代表绕过网站限制。V1 仍然要求真实信息、合法渠道、授权提交和逐项留证。
 
@@ -82,6 +85,12 @@
 4. 把新的结果记录在独立任务记录中，不要把清单备注直接当成当前事实。
 
 ## SEO 写作能力
+
+### 目录与长文平台统一执行
+
+`$backlink-operations-v1` 会判断目标是产品目录、长文平台还是社交发布面。三条路线各自执行，但统一写入 `Placements`；长期记录只保留状态、公开页面、实际外链、锚文本、结果、核验与证据，不维护正文、图片、标题或平台专用字段。
+
+批次授权只有明确列出平台、账号别名、有效期以及 `write`、`draft`、`publish`、`upload` 动作时，才允许执行对应动作。已发布文章必须重新打开公开页面并核验实际锚文本、`href`、UTM 和 `rel`。
 
 ### 通用 SEO Writer
 
@@ -130,6 +139,26 @@ Codex Skills 用于保存可重复使用的说明、资料和脚本；调用时�
 只使用已确认的产品资料，不付费、不添加互链、不绕过验证。
 每个站点完成后立即记录证据，结果不明确时不要重试。
 ```
+
+### 目录与文章混合示例
+
+```text
+使用 $backlink-operations-v1 处理这些目标网址。产品目录走 SPD V1；
+长文平台使用临时 writer 工作流，按平台受众选择不重复主题。
+只执行批次授权明确允许的写作、草稿、发布和上传动作，
+所有结果通过自带 CLI 记录到同一个 Google Sheets 工作簿。
+```
+
+V1 首次使用前需要启用 Google Sheets API、创建桌面 OAuth 客户端并执行：
+
+```bash
+uv sync --dev
+uv run python submit-product-directories-v1-batch/scripts/sheets_record.py auth --client-secret /approved/path/client-secret.json
+uv run python submit-product-directories-v1-batch/scripts/sheets_record.py init --title "Backlink Operations"
+uv run python submit-product-directories-v1-batch/scripts/sheets_record.py doctor
+```
+
+OAuth 文件和工作簿配置保存在当前项目的 `.backlink-go/runtime/`，该目录由 Git 忽略。
 
 ### 按顺序精细提交示例
 
@@ -181,6 +210,7 @@ CAPTCHA、Turnstile、2FA、Passkey、邮箱/手机验证等必须由网站原�
 ├── README_*.md                       # 其他语言基础说明
 ├── Free-backlink-list.md             # 免费外链候选清单（Markdown）
 ├── assets/                           # README 主视觉与 Star 趋势图
+├── backlink-operations-v1/          # 目录与长文发布总控 Skill
 ├── submit-product-directories-v1-batch/
 │   ├── SKILL.md
 │   ├── agents/openai.yaml
@@ -207,10 +237,10 @@ CAPTCHA、Turnstile、2FA、Passkey、邮箱/手机验证等必须由网站原�
 
 ## 校验与测试
 
-两个外链提交 Skill 都带有记录审计脚本和测试：
+两个外链提交 Skill 都带有记录审计脚本和测试。V1 审计 Google Sheets 中的权威记录，V2 目前仍审计 Markdown：
 
 ```bash
-python3 submit-product-directories-v1-batch/scripts/audit_submission_record.py path/to/v1-record.md
+uv run python submit-product-directories-v1-batch/scripts/sheets_record.py audit --campaign-id CAMPAIGN_ID
 python3 submit-product-directories-v2-quality/scripts/audit_submission_record.py path/to/v2-record.md
 
 python3 -m unittest discover -s submit-product-directories-v1-batch/tests

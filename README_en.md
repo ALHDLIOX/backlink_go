@@ -21,7 +21,8 @@ This is not a one-click link-spam tool. It does not promise acceptance, dofollow
 
 | Component | Best for | Main capabilities |
 |---|---|---|
-| [`SPD V1 Batch`](submit-product-directories-v1-batch/SKILL.md) | Large, prequalified URL lists | Normalize, deduplicate, shard, verification-first queues, sequential form execution, recovery, throughput records |
+| [`Backlink Operations V1`](backlink-operations-v1/SKILL.md) | Mixed directory and long-form publishing targets | Automatic routing, ephemeral platform-adapted writing, authorized publishing, shared Sheets audit |
+| [`SPD V1 Batch`](submit-product-directories-v1-batch/SKILL.md) | Large, prequalified URL lists | Normalize, deduplicate, shard, verification-first queues, sequential execution, Google Sheets records, recovery |
 | [`SPD V2 Quality`](submit-product-directories-v2-quality/SKILL.md) | Small quality-first campaigns | Up to 10 sites per batch, audience and SEO quality gates, action-level authorization, evidence and durability checks |
 | [`writer`](writer/SKILL.md) | General website SEO articles | Brief, outline, fact-checking, SEO audit, rewrite, humanization, images, file packaging |
 | [`linkedin-writer`](writer/linkedin-writer/SKILL.md) | LinkedIn Articles and newsletters | Topic research, business depth, thought leadership, SEO settings, publishing pack |
@@ -32,6 +33,8 @@ This is not a one-click link-spam tool. It does not promise acceptance, dofollow
 ## Choose a submission skill
 
 Use `$submit-product-directories-v1-batch` when you already have a large set of legitimate and relevant URLs. V1 optimizes queue throughput, deduplication, verification handling, sequential execution within a browser profile, and resumability. “Batch” means batch planning and queue processing; it does not mean uncontrolled parallel submission or bypassing site limits.
+
+V1 records state through its bundled Python CLI and the Google Sheets API. A single `Backlink Operations` workbook contains `Platforms`, `Campaigns`, unified `Placements`, and append-only `Events`. Directory, article, and social results share the same placement model, centered on the actual backlink and anchor text. Google Sheets is authoritative; Markdown is export-only.
 
 Use `$submit-product-directories-v2-quality` when relevance, audience value, governance, referral potential, and listing durability matter more than volume. V2 uses small pilots of no more than 10 sites, qualifies every destination before form work, checks authorization for each consequential action, and keeps structured evidence.
 
@@ -44,6 +47,8 @@ The repository publishes the list as [Markdown](Free-backlink-list.md). It conta
 The filename retains the team's internal “Free Backlink List” label, but not every entry is currently free or usable. The data intentionally preserves paid, closed, unavailable, reciprocal-link, article-only, duplicate, and unverified routes. Statuses are historical source notes, not independently verified current facts. Recheck every destination before using it and never copy a historical submission status into a new product campaign.
 
 ## Writing skills
+
+`$backlink-operations-v1` routes directories, long-form platforms, and social publishing surfaces through separate execution instructions while recording every result in one `Placements` table. Long-term records retain status, public page, actual backlink, anchor text, result, verification, and evidence—not copy, images, titles, or platform-specific fields. Direct publication still requires explicit, unexpired authorization for the platform, account, and action.
 
 The general `$writer` workflow creates and improves SEO-focused blog posts, tutorials, comparisons, listicles, explainers, FAQs, metadata, and local article packages. It covers search intent, current-claim verification, SEO auditing, audit-driven rewriting, humanization, 16:9 visuals, and optional Cloudflare R2 image delivery.
 
@@ -77,6 +82,13 @@ claims, then complete the outline, article, SEO audit, rewrite, humanization,
 and local image plan. Save the article package and do not publish it.
 ```
 
+```text
+Use $backlink-operations-v1 to classify these authorized URLs. Route directories
+to SPD V1 and long-form platforms to ephemeral, platform-adapted writing. Use only
+the authorized write, draft, publish, and upload actions, and record every result
+through the bundled Google Sheets CLI.
+```
+
 ## Repository layout
 
 ```text
@@ -86,6 +98,7 @@ and local image plan. Save the article package and do not publish it.
 ├── README_*.md
 ├── Free-backlink-list.md
 ├── assets/                           # README hero and Star trend chart
+├── backlink-operations-v1/
 ├── submit-product-directories-v1-batch/
 ├── submit-product-directories-v2-quality/
 └── writer/

@@ -9,6 +9,8 @@ description: SEO-friendly article writing, audit, and humanization workflow for 
 
 Use this skill to produce and improve Google SEO-friendly articles that stay focused on one topic, use keywords naturally, and avoid invented facts or over-marketing. Default output language should match the user's request unless they specify another language.
 
+When `$backlink-operations-v1` explicitly invokes this skill in `ephemeral-publish` mode, load [references/ephemeral-publishing.md](references/ephemeral-publishing.md) before planning. That reference overrides the normal platform rerouting, file-output, image-generation, and R2-upload rules only for the current run. Do not activate ephemeral mode from an ordinary `$writer` request.
+
 When the requested destination is a Chinese WeChat Official Account (微信公众号、微信文章、公众号推文), load `wechat-writer/SKILL.md` and follow that workflow instead of applying this Google-first structure. When the destination is a LinkedIn Article, newsletter, LinkedIn long-form post, or LinkedIn thought-leadership package, use `linkedin-writer/SKILL.md`; its output contract overrides this file and stores the package under `linkedin-writer/output/<article-slug>/`. When the destination is Medium or another editorial third-party article, use `medium-writer/SKILL.md`; its output contract stores the package under `medium-writer/output/<story-slug>/`.
 
 For a full reusable prompt and final article template, load `references/seo-article-template.md` when the user asks for a ready-to-copy prompt, a complete article, or a reusable writing template.
