@@ -145,6 +145,8 @@ class ValidationTests(unittest.TestCase):
             MODEL.validate_placement(placement(execution_notes="person@example.com"))
         with self.assertRaisesRegex(MODEL.RecordValidationError, "sensitive query"):
             MODEL.validate_placement(placement(website="https://example.test/create?token=secret"))
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "authority credentials"):
+            MODEL.validate_placement(placement(website="https://user:abc$@example.test/create"))
 
     def test_operation_urls_must_belong_to_claimed_platform(self):
         MODEL.validate_platform(platform(
@@ -160,6 +162,14 @@ class ValidationTests(unittest.TestCase):
             platform_domain="xn--bcher-kva.example",
             website="https://bücher.example/create",
             idempotency_key="xn--bcher-kva.example|product-1|account-1|create|placement-1",
+        ))
+        MODEL.validate_platform(platform(
+            platform_domain="faß.de",
+            canonical_submission_url="https://xn--fa-hia.de/create",
+        ))
+        MODEL.validate_platform(platform(
+            platform_domain="xn--fa-hia.de",
+            canonical_submission_url="https://faß.de/create",
         ))
         with self.assertRaisesRegex(MODEL.RecordValidationError, "canonical_submission_url hostname"):
             MODEL.validate_platform(platform(canonical_submission_url="https://unrelated.test/create"))

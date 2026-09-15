@@ -2,6 +2,7 @@
 from __future__ import annotations
 from datetime import datetime
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+import idna
 import json
 import re
 
@@ -212,6 +213,8 @@ def normalize_url(value: str) -> str:
     if not re.match(r"^https?://", raw, flags=re.I): raise RecordValidationError(f"URL must be public HTTP(S): {raw}")
     split = urlsplit(raw)
     if not split.hostname: raise RecordValidationError(f"URL has no hostname: {raw}")
+    if split.username is not None or split.password is not None:
+        raise RecordValidationError("URL authority credentials are forbidden")
     query = [(k, v) for k, v in parse_qsl(split.query, keep_blank_values=True) if k.lower() not in TRACKING_KEYS]
     path = split.path or "/"
     if path != "/": path = path.rstrip("/")
@@ -223,8 +226,8 @@ def normalize_platform_domain(value: object) -> str:
     if not raw or "://" in raw or any(character in raw for character in "/?#@"):
         raise RecordValidationError(f"platform_domain must be a hostname: {raw}")
     try:
-        hostname = raw.encode("idna").decode("ascii")
-    except UnicodeError as exc:
+        hostname = idna.encode(raw, uts46=True).decode("ascii")
+    except idna.IDNAError as exc:
         raise RecordValidationError(f"platform_domain is invalid: {raw}") from exc
     if hostname.startswith("www."):
         hostname = hostname[4:]
@@ -303,7 +306,10 @@ def validate_privacy(record: dict[str, object]) -> None:
         if re.search(r"(?i)Bearer\s+[A-Za-z0-9._~-]+", text):
             raise RecordValidationError(f"bearer token is forbidden in {field}")
         for url in re.findall(r"https?://[^\s<>\"']+", text, flags=re.I):
-            if any(k.lower() in SENSITIVE_QUERY_KEYS for k, _ in parse_qsl(urlsplit(url).query, keep_blank_values=True)):
+            parsed = urlsplit(url)
+            if parsed.username is not None or parsed.password is not None:
+                raise RecordValidationError(f"URL authority credentials are forbidden in {field}")
+            if any(k.lower() in SENSITIVE_QUERY_KEYS for k, _ in parse_qsl(parsed.query, keep_blank_values=True)):
                 raise RecordValidationError(f"sensitive query parameter is forbidden in {field}")
 
 

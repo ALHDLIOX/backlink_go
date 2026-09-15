@@ -173,6 +173,22 @@ class WriteRegressionTests(unittest.TestCase):
                 self.assertFalse(operations.workbook_audit(store, None)["valid"])
         MODEL.validate_privacy({"notes": "See https://example.test/?utm_source=test and https://example.test/ok"})
 
+    def test_embedded_url_authority_credentials_rejected_by_write_and_audit(self):
+        for text in ("https://user:abc$@example.test/create",
+                     "redirected to https://user@example.test/create"):
+            with self.subTest(text=text):
+                store = self.seeded()
+                with self.assertRaisesRegex(
+                    MODEL.RecordValidationError,
+                    "authority credentials|raw email",
+                ):
+                    operations.upsert(
+                        store, "placement",
+                        queued(execution_notes=text, expected_row_version="1"),
+                    )
+                store.tables["Placements"][0]["execution_notes"] = text
+                self.assertFalse(operations.workbook_audit(store, None)["valid"])
+
     def test_history_matches_domain_variants_and_product(self):
         store = self.seeded()
         for stored, query in (("WWW.Example.Test.", "example.test"), ("bücher.test", "xn--bcher-kva.test")):
