@@ -251,6 +251,120 @@ def article_event(**changes):
     return value
 
 
+def social_platform(**changes):
+    value = platform(
+        platform_id="platform-social-test",
+        platform_domain="social.test",
+        website_name="Social Test",
+        platform_type="social",
+        canonical_submission_url="https://social.test/create",
+        route="short social post",
+        verification_pattern="no verification presented",
+    )
+    value.update(changes)
+    return value
+
+
+def social_campaign(**changes):
+    value = campaign(
+        campaign_id="campaign-social-001",
+        source_urls="https://social.test/create",
+        batch_authorization_reference="auth-batch-social-001",
+        workflow_version="Backlink Operations V1",
+        campaign_mode="social",
+    )
+    value.pop("spd_version", None)
+    value.update(changes)
+    return value
+
+
+SOCIAL_FINGERPRINT = "sha256:" + "c" * 64
+
+
+def social_post(**changes):
+    social_post_id = changes.pop("social_post_id", "social-001")
+    value = {
+        "platform_domain": "social.test",
+        "website": "https://social.test/create",
+        "status": "published",
+        "post_type": "pin",
+        "title": "A useful product pin",
+        "post_text": "A concise, truthful product description.",
+        "public_url": "https://social.test/pin/123",
+        "target_url": "https://product-001.test/?utm_source=social&utm_medium=referral&utm_campaign=backlink",
+        "outbound_href": "https://product-001.test/?utm_source=social&utm_medium=referral&utm_campaign=backlink",
+        "board_or_channel": "Product ideas",
+        "media_reference": "products/product-001/images/social.png",
+        "ai_disclosure": "applied",
+        "utm_source": "social",
+        "utm_medium": "referral",
+        "utm_campaign": "backlink",
+        "exact_result": "Published and public",
+        "follow_up": "recheck later",
+        "verification_preflight": "no verification presented",
+        "published_at": NOW,
+        "last_checked": NOW,
+        "social_post_id": social_post_id,
+        "queue_id": "S-001",
+        "product_canonical_id": "product-001",
+        "campaign_id": "campaign-social-001",
+        "platform_id": "platform-social-test",
+        "route": "short social post",
+        "account_alias": "account-001",
+        "idempotency_key": f"social.test|product-001|account-001|short social post|{social_post_id}",
+        "legitimacy_gate": "passed",
+        "authorization_reference": "auth-batch-social-001",
+        "evidence_reference": "ev-social-001",
+        "content_fingerprint": SOCIAL_FINGERPRINT,
+        "public_page_checked": "checked",
+        "outbound_link_checked": "checked",
+        "media_checked": "checked",
+        "backend_checked": "checked",
+        "mailbox_checked": "not applicable",
+        "execution_method": "connected browser",
+        "execution_notes": "published through social lane",
+    }
+    value.update(changes)
+    return value
+
+
+def queued_social_post(**changes):
+    value = social_post(
+        status="not attempted",
+        public_url="not applicable",
+        outbound_href="not applicable",
+        ai_disclosure="unknown",
+        exact_result="not attempted",
+        follow_up="open composer",
+        verification_preflight="not checked",
+        published_at="not submitted",
+        evidence_reference="not applicable",
+        public_page_checked="not applicable",
+        outbound_link_checked="not applicable",
+        backend_checked="not applicable",
+        mailbox_checked="not applicable",
+    )
+    value.update(changes)
+    return value
+
+
+def social_event(**changes):
+    value = {
+        "event_id": "evt-social-001",
+        "record_type": "social",
+        "campaign_id": "campaign-social-001",
+        "queue_id": "S-001",
+        "idempotency_key": "social.test|product-001|account-001|short social post|social-001",
+        "timestamp": NOW,
+        "action": "social publication",
+        "result": "published",
+        "evidence_reference": "ev-social-001",
+        "actor_alias": "operator-001",
+    }
+    value.update(changes)
+    return value
+
+
 class MemoryStore:
     def __init__(self):
         self.tables = {name: [] for name in MODEL.TABLE_HEADERS}
@@ -298,7 +412,7 @@ class MemoryStore:
 
 
 class WorkbookSchemaTests(unittest.TestCase):
-    def test_create_body_has_five_frozen_sheets(self):
+    def test_create_body_has_six_frozen_sheets(self):
         body = SHEETS.workbook_create_body("Backlink Operations")
         self.assertEqual([item["properties"]["title"] for item in body["sheets"]], list(MODEL.TABLE_HEADERS))
         self.assertTrue(all(item["properties"]["gridProperties"]["frozenRowCount"] == 1 for item in body["sheets"]))
@@ -430,6 +544,37 @@ class WorkbookSchemaTests(unittest.TestCase):
         self.assertEqual(SHEETS.column_letter(26), "Z")
         self.assertEqual(SHEETS.column_letter(27), "AA")
 
+    def test_verify_schema_uses_version_specific_v5_headers(self):
+        class PriorStore:
+            def metadata(self):
+                return {
+                    "developerMetadata": [
+                        {"metadataKey": SHEETS.METADATA_KEY, "metadataValue": MODEL.PREVIOUS_SCHEMA_VERSION}
+                    ],
+                    "sheets": [
+                        {
+                            "properties": {
+                                "sheetId": index,
+                                "title": name,
+                                "gridProperties": {
+                                    "columnCount": len(headers),
+                                    "frozenRowCount": 1,
+                                },
+                            }
+                        }
+                        for index, (name, headers) in enumerate(MODEL.SCHEMA_V5_TABLE_HEADERS.items(), start=1)
+                    ],
+                }
+
+            def _read_values(self, range_name):
+                tab_name = range_name.split("'")[1]
+                return [[MODEL.HEADER_LABELS[header] for header in MODEL.SCHEMA_V5_TABLE_HEADERS[tab_name]]]
+
+        metadata = SHEETS.GoogleSheetsStore.verify_schema(
+            PriorStore(), MODEL.PREVIOUS_SCHEMA_VERSION, MODEL.SCHEMA_V5_TABLE_HEADERS
+        )
+        self.assertEqual(len(metadata["sheets"]), 5)
+
     def test_api_value_writes_are_raw(self):
         class CaptureService:
             def __init__(self):
@@ -547,10 +692,15 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(migrated_event["record_type"], "submission")
         self.assertEqual(migrated_event["action"], "old-action")
 
-    def test_schema_v5_migration_request_preserves_tables_and_updates_metadata(self):
-        properties = {name: {"sheetId": index} for index, name in enumerate(MODEL.LEGACY_TABLE_HEADERS, start=1)}
+    def test_schema_v6_migration_request_preserves_tables_and_adds_social(self):
+        properties = {
+            name: {"sheetId": index}
+            for index, name in enumerate(MODEL.SCHEMA_V5_TABLE_HEADERS, start=1)
+        }
         records = {name: [] for name in MODEL.TABLE_HEADERS}
-        requests = SHEETS.schema_v5_migration_requests(properties, records)
+        requests = SHEETS.schema_v6_migration_requests(
+            properties, records, MODEL.SCHEMA_V5_TABLE_HEADERS
+        )
         self.assertEqual(sum("addSheet" in item for item in requests), 1)
         sizes = {
             item["updateSheetProperties"]["properties"]["sheetId"]:
@@ -562,11 +712,24 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(sizes[2], len(MODEL.CAMPAIGN_HEADERS))
         self.assertEqual(sizes[3], len(MODEL.SUBMISSION_HEADERS))
         metadata = [item for item in requests if "updateDeveloperMetadata" in item]
-        self.assertEqual(metadata[0]["updateDeveloperMetadata"]["developerMetadata"]["metadataValue"], "5")
+        self.assertEqual(metadata[0]["updateDeveloperMetadata"]["developerMetadata"]["metadataValue"], "6")
         added = next(item["addSheet"]["properties"] for item in requests if "addSheet" in item)
-        self.assertEqual(added["title"], "Articles")
-        self.assertEqual(added["index"], 3)
+        self.assertEqual(added["title"], "SocialPosts")
+        self.assertEqual(added["index"], 4)
         self.assertNotIn("_conditionalRuleCount", added)
+
+    def test_schema_v4_can_migrate_directly_to_v6(self):
+        properties = {
+            name: {"sheetId": index}
+            for index, name in enumerate(MODEL.LEGACY_TABLE_HEADERS, start=1)
+        }
+        records = {name: [] for name in MODEL.TABLE_HEADERS}
+        requests = SHEETS.schema_v6_migration_requests(
+            properties, records, MODEL.LEGACY_TABLE_HEADERS
+        )
+        added = [item["addSheet"]["properties"] for item in requests if "addSheet" in item]
+        self.assertEqual([item["title"] for item in added], ["Articles", "SocialPosts"])
+        self.assertEqual([item["index"] for item in added], [3, 4])
 
     def test_timestamps_are_compacted_to_local_minute_precision(self):
         self.assertEqual(MODEL.compact_timestamp(NOW), "2026-09-15 10:00")
@@ -677,6 +840,70 @@ class ValidationTests(unittest.TestCase):
         self.assertNotIn("Secret body text", json.dumps(first))
         self.assertFalse(first["body_persisted"])
 
+    def test_social_fingerprint_is_deterministic_and_does_not_echo_text(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "social.json"
+            source.write_text(
+                json.dumps(
+                    {
+                        "title": "Pin title",
+                        "post_text": "Private working text canary",
+                        "target_url": "https://example.test/?utm_source=social",
+                        "media_reference": "products/example/images/social.png",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            first = SHEETS.social_fingerprint(source)
+            second = SHEETS.social_fingerprint(source)
+        self.assertEqual(first, second)
+        self.assertRegex(first["content_fingerprint"], r"^sha256:[0-9a-f]{64}$")
+        self.assertNotIn("Private working text canary", json.dumps(first))
+        self.assertFalse(first["text_echoed"])
+
+    def test_published_social_requires_matching_utm_and_public_checks(self):
+        MODEL.validate_social_post(social_post())
+        MODEL.validate_social_post(social_post(published_at="unknown"))
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "matching utm_source"):
+            MODEL.validate_social_post(social_post(utm_source="pinterest"))
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "outbound_href does not match"):
+            MODEL.validate_social_post(social_post(outbound_href="https://other.test/"))
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "public_page_checked"):
+            MODEL.validate_social_post(social_post(public_page_checked="not checked"))
+
+    def test_pin_requires_board_media_and_ai_disclosure_value(self):
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "board_or_channel"):
+            MODEL.validate_social_post(social_post(board_or_channel="not applicable"))
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "invalid ai_disclosure"):
+            MODEL.validate_social_post(social_post(ai_disclosure="yes"))
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "resolved ai_disclosure"):
+            MODEL.validate_social_post(social_post(ai_disclosure="unknown"))
+        MODEL.validate_social_post(
+            social_post(
+                status="ineligible",
+                board_or_channel="not applicable",
+                media_reference="not applicable",
+                media_checked="not applicable",
+                public_url="not applicable",
+                outbound_href="not applicable",
+                exact_result="Platform policy makes this post ineligible",
+                published_at="not submitted",
+                evidence_reference="ev-ineligible",
+                public_page_checked="not applicable",
+                outbound_link_checked="not applicable",
+            )
+        )
+
+    def test_published_social_rejects_failure_text_in_check_fields(self):
+        for field, value in (
+            ("media_checked", "failed: media missing"),
+            ("public_page_checked", "failed: page not visible"),
+            ("outbound_link_checked", "failed: outbound did not resolve"),
+        ):
+            with self.subTest(field=field):
+                with self.assertRaisesRegex(MODEL.RecordValidationError, field):
+                    MODEL.validate_social_post(social_post(**{field: value}))
+
     def test_unknown_outcome_requires_all_checks(self):
         value = submission(
             status="submission outcome unknown",
@@ -743,6 +970,12 @@ class StoreTests(unittest.TestCase):
         SHEETS.upsert(store, "campaign", article_campaign())
         return store
 
+    def social_store(self):
+        store = MemoryStore()
+        SHEETS.upsert(store, "platform", social_platform())
+        SHEETS.upsert(store, "campaign", social_campaign())
+        return store
+
     def test_upsert_creates_then_increments_version(self):
         store = self.populated_store()
         first = SHEETS.upsert(store, "submission", queued_submission())
@@ -797,6 +1030,57 @@ class StoreTests(unittest.TestCase):
         with self.assertRaisesRegex(MODEL.RecordValidationError, "unknown idempotency_key"):
             SHEETS.append_event(store, article_event(record_type="submission"))
 
+    def test_social_create_event_publish_and_version(self):
+        store = self.social_store()
+        created = SHEETS.upsert(store, "social", queued_social_post())
+        SHEETS.append_event(store, social_event())
+        published = SHEETS.upsert(store, "social", social_post(expected_row_version="1"))
+        self.assertEqual(created["action"], "created")
+        self.assertEqual(published["row_version"], "2")
+        self.assertEqual(store.tables["SocialPosts"][0]["status"], "published")
+
+    def test_executed_social_requires_social_campaign_and_platform_types(self):
+        store = self.social_store()
+        SHEETS.upsert(store, "social", queued_social_post())
+        SHEETS.append_event(store, social_event())
+        store.tables["Campaigns"][0]["campaign_mode"] = "article"
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "campaign mode"):
+            SHEETS.upsert(store, "social", social_post(expected_row_version="1"))
+
+        store.tables["Campaigns"][0]["campaign_mode"] = "social"
+        store.tables["Platforms"][0]["platform_type"] = "directory"
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "platform type"):
+            SHEETS.upsert(store, "social", social_post(expected_row_version="1"))
+
+    def test_social_event_must_use_matching_record_type(self):
+        store = self.social_store()
+        SHEETS.upsert(store, "social", queued_social_post())
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "unknown idempotency_key"):
+            SHEETS.append_event(store, social_event(record_type="article"))
+
+    def test_social_history_filters_and_returns_auditable_fields(self):
+        store = self.social_store()
+        SHEETS.upsert(store, "social", queued_social_post())
+        result = SHEETS.social_history(store, "product-001", "social.test")
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["post_type"], "pin")
+        self.assertNotIn("post_text", result[0])
+
+    def test_social_cli_command_maps_to_social_record_kind(self):
+        store = self.social_store()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            payload = root / "social.json"
+            payload.write_text(json.dumps(queued_social_post()), encoding="utf-8")
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with patch.object(SHEETS, "load_store", return_value=store), redirect_stdout(stdout), redirect_stderr(stderr):
+                code = SHEETS.main(
+                    ["--config-dir", str(root / "config"), "upsert-social-post", "--input", str(payload)]
+                )
+        self.assertEqual(code, 0, stderr.getvalue())
+        self.assertEqual(json.loads(stdout.getvalue())["table"], "SocialPosts")
+
     def test_cross_table_queue_and_idempotency_are_rejected(self):
         store = self.populated_store()
         SHEETS.upsert(store, "submission", queued_submission())
@@ -812,6 +1096,12 @@ class StoreTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(MODEL.RecordValidationError, "queue_id"):
             SHEETS.upsert(store, "article", queued_article(campaign_id="campaign-001", queue_id="Q-001"))
+
+        store.tables["SocialPosts"].append(
+            {"idempotency_key": "directory.test|product-001|account-001|directory listing"}
+        )
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "another record type"):
+            SHEETS.upsert(store, "submission", queued_submission())
 
     def test_duplicate_article_fingerprint_is_rejected(self):
         store = self.article_store()
@@ -1031,6 +1321,20 @@ class StoreTests(unittest.TestCase):
         )
         self.assertIn("Article A-001", markdown)
         self.assertNotIn("Secret body", markdown)
+
+    def test_social_audit_and_export_includes_post_metadata(self):
+        store = self.social_store()
+        SHEETS.upsert(store, "social", queued_social_post())
+        SHEETS.append_event(store, social_event())
+        SHEETS.upsert(store, "social", social_post(expected_row_version="1"))
+        result = SHEETS.workbook_audit(store, "campaign-social-001")
+        self.assertTrue(result["valid"], result["errors"])
+        self.assertEqual(result["total_social_posts"], 1)
+        markdown = MODEL.export_campaign_markdown(
+            store.tables["Campaigns"][0], [], store.tables["Events"], [], store.tables["SocialPosts"]
+        )
+        self.assertIn("Social S-001", markdown)
+        self.assertIn("A concise, truthful product description.", markdown)
 
     def test_audit_reports_duplicate_article_id(self):
         store = self.article_store()

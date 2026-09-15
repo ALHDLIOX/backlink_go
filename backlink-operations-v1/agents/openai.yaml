@@ -1,4 +1,4 @@
 interface:
   display_name: "Backlink Operations V1"
-  short_description: "Route directory and long-form article backlink work"
-  default_prompt: "Use $backlink-operations-v1 to classify these authorized destinations, route directories to SPD V1 and long-form article platforms to the ephemeral writer workflow, and record verified results through the bundled Google Sheets CLI."
+  short_description: "Route directory, article, and social backlink work"
+  default_prompt: "Use $backlink-operations-v1 to classify these authorized destinations, route directories, long-form articles, and social posts through the correct workflow, and record verified results through the bundled Google Sheets CLI."

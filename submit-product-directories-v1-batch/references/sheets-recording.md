@@ -12,15 +12,15 @@ uv run python scripts/sheets_record.py init --title "Backlink Operations"
 uv run python scripts/sheets_record.py doctor
 ```
 
-Existing schema-4 workbooks require one migration:
+Existing schema-4 or schema-5 workbooks require one migration:
 
 ```bash
-uv run python scripts/sheets_record.py migrate-schema-v5
+uv run python scripts/sheets_record.py migrate-schema-v6
 uv run python scripts/sheets_record.py doctor
 uv run python scripts/sheets_record.py format-workbook
 ```
 
-Migration preserves directory data, assigns `platform_type: directory`, maps campaigns to `workflow_version: SPD V1 Batch` and `campaign_mode: directory`, assigns old events `record_type: submission`, and creates an empty `Articles` sheet. Initialization creates all five sheets. Business timestamps accept ISO-8601 input and are displayed as local `YYYY-MM-DD HH:MM`.
+Migration preserves existing data, assigns schema-4 rows their directory defaults, preserves schema-5 article data, and creates missing `Articles` or `SocialPosts` sheets. Initialization creates all six sheets. Business timestamps accept ISO-8601 input and are displayed as local `YYYY-MM-DD HH:MM`.
 
 Authentication and workbook configuration live in the ignored project directory `.backlink-go/runtime/`. `BACKLINK_GO_CONFIG_DIR` or `--config-dir` may override it. Stop on authentication, schema, API, or readback errors; do not fall back to plugin or Markdown writes.
 
@@ -33,16 +33,18 @@ uv run python scripts/sheets_record.py upsert-platform --input platform.json --d
 uv run python scripts/sheets_record.py upsert-campaign --input campaign.json --dry-run
 uv run python scripts/sheets_record.py upsert-submission --input submission.json --dry-run
 uv run python scripts/sheets_record.py upsert-article --input article.json --dry-run
+uv run python scripts/sheets_record.py upsert-social-post --input social-post.json --dry-run
 uv run python scripts/sheets_record.py append-event --input event.json --dry-run
 ```
 
 Dry-run output contains only the command, stable key, validation result, `network_access: false`, and `deduplication_checked: false`. It never prints the full record. A dry run does not prove workbook uniqueness or authorize execution.
+Because it has no workbook state, it also cannot prove that an Event's `record_type`, queue, and idempotency key resolve to an existing matching row; the real append performs that linkage check.
 
 ## Write order
 
 1. Run `doctor`.
 2. Upsert Campaign, then the live-preflighted Platform.
-3. Create the Submission or Article queue item.
+3. Create the Submission, Article, or SocialPost queue item.
 4. For every meaningful action, append the correctly typed Event first, then update the matching record using its current row version.
 5. Advance the cursor only after both writes pass readback.
 6. Run campaign audit before closing.
@@ -154,6 +156,17 @@ uv run python scripts/sheets_record.py article-history --product-id product-exam
 uv run python scripts/sheets_record.py article-history --product-id product-example --platform-domain blog.example --json
 ```
 
+## Social payload
+
+Social short-form text is stored for operational review. Compute its fingerprint from temporary JSON containing `title`, `post_text`, `target_url`, and `media_reference`; the command does not echo the text:
+
+```bash
+uv run python scripts/sheets_record.py fingerprint-social-post --input /private/tmp/social-fingerprint.json
+uv run python scripts/sheets_record.py social-history --product-id product-example --platform-domain www.pinterest.com --json
+```
+
+The social key is `platform_domain|product_canonical_id|account_alias|route|social_post_id`. `target_url` must contain values matching `utm_source`, `utm_medium`, and `utm_campaign`. Pinterest Pins also require a Board/channel, approved media reference, media check, and an explicit AI-disclosure state. A published social record requires its public URL, actual outbound href, public-page check, outbound-link check, exact result, evidence, and publication time; `published_at: unknown` is permitted only for a truthful backfill when the public page exposes no reliable time.
+
 ## Events
 
 Every Event includes `record_type` and links to exactly one existing or proposed record:
@@ -173,7 +186,7 @@ Every Event includes `record_type` and links to exactly one existing or proposed
 }
 ```
 
-Use `record_type: submission` for directory work and `record_type: article` for article work. Events are append-only. An identical event replay is idempotent; conflicting reuse of an event ID stops.
+Use `record_type: submission` for directory work, `record_type: article` for article work, and `record_type: social` for short social publishing. Events are append-only. An identical event replay is idempotent; conflicting reuse of an event ID stops.
 
 The CLI verifies that an authorization reference is present, but it cannot infer the actions allowed by a reference string. The orchestration skill must resolve the referenced project-local authorization and enforce its platform, account, action, and expiry scope before constructing an executed state.
 
@@ -185,4 +198,4 @@ uv run python scripts/sheets_record.py audit --campaign-id campaign-example-001 
 uv run python scripts/sheets_record.py export-md --campaign-id campaign-example-001 --output /approved/path/campaign-example-001.md
 ```
 
-Audit covers Submissions, Articles, and typed Events. Export includes operational article metadata but never article body. Google Sheets remains authoritative; do not import edited Markdown.
+Audit covers Submissions, Articles, SocialPosts, and typed Events. Export includes operational article metadata and social text but never article body. Google Sheets remains authoritative; do not import edited Markdown.

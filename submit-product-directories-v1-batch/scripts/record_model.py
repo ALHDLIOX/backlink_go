@@ -9,7 +9,8 @@ from datetime import datetime
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
-SCHEMA_VERSION = "5"
+SCHEMA_VERSION = "6"
+PREVIOUS_SCHEMA_VERSION = "5"
 LEGACY_SCHEMA_VERSION = "4"
 POLICY_VERSION = "spd-v1-policy-2"
 
@@ -64,10 +65,33 @@ ARTICLE_STATUSES = {
     "terminated by user",
 }
 
+SOCIAL_STATUSES = {
+    "not attempted",
+    "composing",
+    "editor in progress",
+    "draft saved",
+    "scheduled",
+    "published",
+    "publication outcome unknown",
+    "awaiting email verification",
+    "blocked — manual verification",
+    "blocked — missing verified data",
+    "blocked — account or email policy",
+    "rejected",
+    "removed",
+    "unavailable",
+    "paid-only",
+    "ineligible",
+    "duplicate — no action",
+    "terminated by user",
+}
+
 ALLOWED_PLATFORM_TYPES = {"directory", "article", "mixed", "social", "unknown"}
-ALLOWED_CAMPAIGN_MODES = {"directory", "article", "mixed"}
+ALLOWED_CAMPAIGN_MODES = {"directory", "article", "social", "mixed"}
 ALLOWED_WORKFLOW_VERSIONS = {"SPD V1 Batch", "Backlink Operations V1"}
-ALLOWED_RECORD_TYPES = {"submission", "article"}
+ALLOWED_RECORD_TYPES = {"submission", "article", "social"}
+ALLOWED_POST_TYPES = {"pin", "short post", "image post", "link post", "thread", "other"}
+ALLOWED_AI_DISCLOSURES = {"applied", "not required", "not available", "unknown"}
 
 ALLOWED_LEGITIMACY = {"passed", "failed", "not checked"}
 ALLOWED_COST_MODELS = {"free", "paid", "freemium", "unknown"}
@@ -81,6 +105,8 @@ TERMINAL_OR_PENDING = {
 EXECUTED = TERMINAL_OR_PENDING | {"form in progress", "draft saved"}
 ARTICLE_PENDING = {"submitted for review", "publication outcome unknown", "awaiting email verification"}
 ARTICLE_EXECUTED = ARTICLE_PENDING | {"writing", "editor in progress", "draft saved", "published"}
+SOCIAL_PENDING = {"scheduled", "publication outcome unknown", "awaiting email verification"}
+SOCIAL_EXECUTED = SOCIAL_PENDING | {"composing", "editor in progress", "draft saved", "published"}
 UNRESOLVED_VERIFICATION = {
     "awaiting manual verification",
     "verification expired/reset",
@@ -134,6 +160,18 @@ ARTICLE_HEADERS = [
     "row_version",
 ]
 
+SOCIAL_POST_HEADERS = [
+    "platform_domain", "website", "status", "post_type", "title", "post_text",
+    "public_url", "target_url", "outbound_href", "board_or_channel", "media_reference",
+    "ai_disclosure", "utm_source", "utm_medium", "utm_campaign", "exact_result",
+    "follow_up", "verification_preflight", "published_at", "last_checked", "social_post_id",
+    "queue_id", "product_canonical_id", "campaign_id", "platform_id", "route",
+    "account_alias", "idempotency_key", "legitimacy_gate", "authorization_reference",
+    "evidence_reference", "content_fingerprint", "public_page_checked",
+    "outbound_link_checked", "media_checked", "backend_checked", "mailbox_checked",
+    "execution_method", "execution_notes", "row_version",
+]
+
 LEGACY_PLATFORM_HEADERS = [
     "website_name", "platform_domain", "canonical_submission_url", "availability",
     "cost_model", "account_required", "verification_pattern", "reciprocal_requirement",
@@ -157,11 +195,20 @@ LEGACY_TABLE_HEADERS = {
     "Events": LEGACY_EVENT_HEADERS,
 }
 
+SCHEMA_V5_TABLE_HEADERS = {
+    "Platforms": PLATFORM_HEADERS,
+    "Campaigns": CAMPAIGN_HEADERS,
+    "Submissions": SUBMISSION_HEADERS,
+    "Articles": ARTICLE_HEADERS,
+    "Events": EVENT_HEADERS,
+}
+
 TABLE_HEADERS = {
     "Platforms": PLATFORM_HEADERS,
     "Campaigns": CAMPAIGN_HEADERS,
     "Submissions": SUBMISSION_HEADERS,
     "Articles": ARTICLE_HEADERS,
+    "SocialPosts": SOCIAL_POST_HEADERS,
     "Events": EVENT_HEADERS,
 }
 
@@ -200,6 +247,10 @@ HEADER_LABELS = {
     "anchor_text": "实际锚文本", "outbound_href": "实际外链地址", "outbound_rel": "链接 rel",
     "published_at": "发布时间", "content_fingerprint": "内容指纹",
     "canonical_policy": "Canonical 规则", "outbound_link_checked": "外链检查",
+    "social_post_id": "社交帖子编号", "post_type": "帖子类型", "post_text": "正文",
+    "board_or_channel": "Board / 频道", "media_reference": "图片 / 媒体编号",
+    "ai_disclosure": "AI 标识", "utm_source": "UTM 来源", "utm_medium": "UTM 媒介",
+    "utm_campaign": "UTM 活动", "media_checked": "图片 / 媒体检查",
 }
 
 
@@ -214,7 +265,7 @@ def legacy_display_headers(tab_name: str) -> list[str]:
 
 
 def migrate_legacy_record(tab_name: str, record: dict[str, object]) -> dict[str, str]:
-    """Convert one schema-v4 record to the schema-v5 shared model."""
+    """Convert one schema-v4 record to the current shared model."""
     migrated = {key: record.get(key, "") for key in TABLE_HEADERS[tab_name]}
     if tab_name == "Platforms":
         migrated["platform_type"] = "directory"
@@ -238,6 +289,11 @@ DROPDOWNS = {
     ("Articles", "status"): sorted(ARTICLE_STATUSES),
     ("Articles", "verification_preflight"): sorted(ALLOWED_VERIFICATION),
     ("Articles", "legitimacy_gate"): sorted(ALLOWED_LEGITIMACY),
+    ("SocialPosts", "status"): sorted(SOCIAL_STATUSES),
+    ("SocialPosts", "post_type"): sorted(ALLOWED_POST_TYPES),
+    ("SocialPosts", "ai_disclosure"): sorted(ALLOWED_AI_DISCLOSURES),
+    ("SocialPosts", "verification_preflight"): sorted(ALLOWED_VERIFICATION),
+    ("SocialPosts", "legitimacy_gate"): sorted(ALLOWED_LEGITIMACY),
     ("Events", "record_type"): sorted(ALLOWED_RECORD_TYPES),
 }
 
@@ -271,6 +327,17 @@ def _empty(value: object) -> bool:
 
 def _not_submitted(value: object) -> bool:
     return str(value or "").strip().lower() in {"", "not submitted", "not applicable"}
+
+
+def _confirmed_check(value: object) -> bool:
+    """Accept explicit positive checks, never arbitrary non-empty failure text."""
+    return bool(
+        re.match(
+            r"^(?:checked|verified|passed|confirmed|visible|yes|approved)\b",
+            str(value or "").strip(),
+            flags=re.IGNORECASE,
+        )
+    )
 
 
 def _assert_iso(value: object, field: str, *, allow_sentinel: bool = False) -> None:
@@ -383,7 +450,7 @@ def validate_platform(record: dict[str, object]) -> None:
 
 
 def normalize_campaign_input(record: dict[str, object]) -> dict[str, object]:
-    """Accept schema-v4 campaign payloads while storing only schema-v5 fields."""
+    """Accept schema-v4 campaign payloads while storing current fields."""
     normalized = dict(record)
     legacy_version = str(normalized.pop("spd_version", "")).strip()
     current_version = str(normalized.get("workflow_version", "")).strip()
@@ -604,6 +671,127 @@ def validate_article(record: dict[str, object]) -> None:
     _validate_managed_fields(record)
 
 
+def computed_social_idempotency_key(record: dict[str, object]) -> str:
+    return "|".join(
+        str(record.get(field, "")).strip()
+        for field in ("platform_domain", "product_canonical_id", "account_alias", "route", "social_post_id")
+    )
+
+
+def _validate_target_href(record: dict[str, object], kind: str) -> None:
+    target = urlsplit(str(record.get("target_url", "")))
+    outbound = urlsplit(str(record.get("outbound_href", "")))
+    if not target.hostname:
+        raise RecordValidationError(f"{kind} target_url must be a public URL")
+    if not outbound.hostname:
+        raise RecordValidationError(f"published {kind} outbound_href must be a public URL")
+    target_path = target.path.rstrip("/") or "/"
+    outbound_path = outbound.path.rstrip("/") or "/"
+    if (target.scheme.lower(), target.netloc.lower(), target_path) != (
+        outbound.scheme.lower(), outbound.netloc.lower(), outbound_path
+    ):
+        raise RecordValidationError(f"published {kind} outbound_href does not match target_url destination")
+    target_query = dict(parse_qsl(target.query, keep_blank_values=True))
+    outbound_query = dict(parse_qsl(outbound.query, keep_blank_values=True))
+    if any(outbound_query.get(key) != value for key, value in target_query.items()):
+        raise RecordValidationError(f"published {kind} outbound_href is missing target_url parameters")
+
+
+def validate_social_state(record: dict[str, object]) -> None:
+    status = str(record.get("status", ""))
+    verification = str(record.get("verification_preflight", ""))
+    if status not in SOCIAL_STATUSES:
+        raise RecordValidationError(f"invalid social status: {status}")
+    if record.get("post_type") not in ALLOWED_POST_TYPES:
+        raise RecordValidationError("invalid post_type")
+    if record.get("ai_disclosure") not in ALLOWED_AI_DISCLOSURES:
+        raise RecordValidationError("invalid ai_disclosure")
+    if verification not in ALLOWED_VERIFICATION:
+        raise RecordValidationError(f"invalid verification_preflight: {verification}")
+    if record.get("legitimacy_gate") not in ALLOWED_LEGITIMACY:
+        raise RecordValidationError("invalid legitimacy_gate")
+    if _empty(record.get("execution_method")):
+        raise RecordValidationError("execution_method must not be empty")
+    if status in SOCIAL_EXECUTED and str(record.get("execution_method", "")).strip().lower() == "unavailable":
+        raise RecordValidationError("social action executed without a compatible execution method")
+    if status in SOCIAL_EXECUTED and record.get("legitimacy_gate") != "passed":
+        raise RecordValidationError("social action executed without a passed legitimacy gate")
+    if status in SOCIAL_EXECUTED and _empty(record.get("authorization_reference")):
+        raise RecordValidationError("social action executed without an authorization reference")
+    if status in {"editor in progress", "draft saved"} | SOCIAL_PENDING | {"published"} and verification in UNRESOLVED_VERIFICATION:
+        raise RecordValidationError("social action executed while verification remained unresolved")
+    if status == "not attempted":
+        if not _not_submitted(record.get("published_at")):
+            raise RecordValidationError("not attempted social post has a publish timestamp")
+        if not _empty(record.get("public_url")):
+            raise RecordValidationError("not attempted social post has a public URL")
+    if status in {
+        "draft saved", "scheduled", "publication outcome unknown", "awaiting email verification",
+        "published", "rejected", "removed",
+    }:
+        if str(record.get("exact_result", "")).strip().lower() in {"", "not attempted", "unknown"}:
+            raise RecordValidationError(f"{status} requires an exact result")
+        if _empty(record.get("evidence_reference")):
+            raise RecordValidationError(f"{status} requires an evidence reference")
+    if status == "publication outcome unknown":
+        for field in ("backend_checked", "mailbox_checked", "public_page_checked"):
+            if str(record.get(field, "")).strip().lower() in {"", "not applicable", "not checked"}:
+                raise RecordValidationError(f"unknown social outcome requires {field}")
+    if record.get("post_type") == "pin" and status in SOCIAL_EXECUTED | {"not attempted"}:
+        for field in ("board_or_channel", "media_reference"):
+            if _empty(record.get(field)):
+                raise RecordValidationError(f"pin requires {field}")
+        if not _confirmed_check(record.get("media_checked")):
+            raise RecordValidationError("pin requires media_checked")
+    if status == "published":
+        for field in ("public_url", "outbound_href"):
+            if _empty(record.get(field)):
+                raise RecordValidationError(f"published social post requires {field}")
+        for field in ("public_page_checked", "outbound_link_checked"):
+            if not _confirmed_check(record.get(field)):
+                raise RecordValidationError(f"published social post requires {field}")
+        if record.get("ai_disclosure") == "unknown":
+            raise RecordValidationError("published social post requires a resolved ai_disclosure")
+        if not urlsplit(str(record.get("public_url", ""))).hostname:
+            raise RecordValidationError("published social post public_url must be a public URL")
+        _validate_target_href(record, "social post")
+        if _not_submitted(record.get("published_at")):
+            raise RecordValidationError("published social post requires published_at or unknown for a backfill")
+    if status == "removed":
+        if _empty(record.get("public_url")) or not urlsplit(str(record.get("public_url", ""))).hostname:
+            raise RecordValidationError("removed social post requires its prior public_url")
+        if _not_submitted(record.get("published_at")):
+            raise RecordValidationError("removed social post requires its prior published_at")
+        if str(record.get("public_page_checked", "")).strip().lower() in {"", "not applicable", "not checked"}:
+            raise RecordValidationError("removed social post requires public_page_checked")
+    _assert_iso(record.get("last_checked"), "last_checked")
+    if str(record.get("published_at", "")).strip().lower() != "unknown":
+        _assert_iso(record.get("published_at"), "published_at", allow_sentinel=True)
+
+
+def validate_social_post(record: dict[str, object]) -> None:
+    generated = {"row_version"}
+    _require(record, [field for field in SOCIAL_POST_HEADERS if field not in generated], "social post")
+    _check_sensitive(record)
+    website_domain = (urlsplit(normalize_url(str(record["website"]))).hostname or "").lower()
+    if website_domain != str(record["platform_domain"]).lower():
+        raise RecordValidationError("platform_domain must match social website")
+    if not urlsplit(str(record["target_url"])).hostname:
+        raise RecordValidationError("social target_url must be a public URL")
+    expected_key = computed_social_idempotency_key(record)
+    if record["idempotency_key"] != expected_key:
+        raise RecordValidationError(f"idempotency_key must equal {expected_key}")
+    if not re.fullmatch(r"sha256:[0-9a-f]{64}", str(record["content_fingerprint"])):
+        raise RecordValidationError("content_fingerprint must be sha256:<64 lowercase hex characters>")
+    target_query = dict(parse_qsl(urlsplit(str(record["target_url"])).query, keep_blank_values=True))
+    for field in ("utm_source", "utm_medium", "utm_campaign"):
+        expected = str(record[field]).strip()
+        if not expected or target_query.get(field) != expected:
+            raise RecordValidationError(f"target_url must contain matching {field}")
+    validate_social_state(record)
+    _validate_managed_fields(record)
+
+
 def prepare_record(
     kind: str,
     record: dict[str, object],
@@ -626,6 +814,9 @@ def prepare_record(
     elif kind == "article":
         validate_article(prepared)
         headers = ARTICLE_HEADERS
+    elif kind == "social":
+        validate_social_post(prepared)
+        headers = SOCIAL_POST_HEADERS
     elif kind == "event":
         validate_event(prepared)
         prepared = compact_record_timestamps(prepared)
@@ -659,8 +850,10 @@ def audit_records(
     platforms: list[dict[str, object]],
     campaign_id: str | None = None,
     articles: list[dict[str, object]] | None = None,
+    social_posts: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
     articles = articles or []
+    social_posts = social_posts or []
     errors: list[str] = []
     warnings: list[str] = []
     selected_campaigns = [item for item in campaigns if not campaign_id or item.get("campaign_id") == campaign_id]
@@ -676,9 +869,15 @@ def audit_records(
         item for item in articles
         if not campaign_id or str(item.get("campaign_id", "")) == campaign_id
     ]
+    selected_social_posts = [
+        item for item in social_posts
+        if not campaign_id or str(item.get("campaign_id", "")) == campaign_id
+    ]
 
     all_record_keys: dict[str, list[tuple[str, dict[str, object]]]] = {}
-    for record_type, records in (("submission", submissions), ("article", articles)):
+    for record_type, records in (
+        ("submission", submissions), ("article", articles), ("social", social_posts)
+    ):
         for item in records:
             all_record_keys.setdefault(str(item.get("idempotency_key", "")), []).append((record_type, item))
     for key, matches in all_record_keys.items():
@@ -689,6 +888,13 @@ def audit_records(
     for article_id, count in article_ids.items():
         if article_id and count > 1:
             errors.append(f"duplicate article_id: {article_id}")
+
+    social_post_ids: Counter[str] = Counter(
+        str(item.get("social_post_id", "")) for item in social_posts
+    )
+    for social_post_id, count in social_post_ids.items():
+        if social_post_id and count > 1:
+            errors.append(f"duplicate social_post_id: {social_post_id}")
 
     fingerprints: dict[tuple[str, str], list[dict[str, object]]] = {}
     for item in articles:
@@ -814,6 +1020,41 @@ def audit_records(
         if verification in UNRESOLVED_VERIFICATION:
             manual_queue.append(label)
 
+    social_status_counts: Counter[str] = Counter()
+    for item in selected_social_posts:
+        label = f"{item.get('campaign_id', '')}/{item.get('queue_id', '')}"
+        pair = (str(item.get("campaign_id", "")), str(item.get("queue_id", "")))
+        if pair in queue_pairs:
+            errors.append(f"duplicate campaign/queue pair: {pair[0]}/{pair[1]}")
+        queue_pairs.add(pair)
+        if str(item.get("campaign_id", "")) not in campaign_map:
+            errors.append(f"{label}: unknown campaign_id")
+        elif str(item.get("product_canonical_id", "")) != str(campaign_map[pair[0]].get("product_canonical_id", "")):
+            errors.append(f"{label}: product_canonical_id does not match campaign")
+        platform_id = str(item.get("platform_id", ""))
+        if platform_id not in platform_map:
+            errors.append(f"{label}: unknown platform_id")
+        elif str(item.get("platform_domain", "")).lower() != str(
+            platform_map[platform_id].get("platform_domain", "")
+        ).lower():
+            errors.append(f"{label}: platform_domain does not match platform")
+        if str(item.get("status", "")) in SOCIAL_EXECUTED:
+            if str(campaign_map.get(pair[0], {}).get("campaign_mode", "")) not in {"social", "mixed"}:
+                errors.append(f"{label}: executed social post requires social or mixed campaign mode")
+            if str(platform_map.get(platform_id, {}).get("platform_type", "")) not in {"social", "mixed"}:
+                errors.append(f"{label}: executed social post requires social or mixed platform type")
+        try:
+            validate_social_post(item)
+        except RecordValidationError as exc:
+            errors.append(f"{label}: {exc}")
+        status = str(item.get("status", "missing"))
+        verification = str(item.get("verification_preflight", "missing"))
+        social_status_counts[status] += 1
+        status_counts[status] += 1
+        verification_counts[verification] += 1
+        if verification in UNRESOLVED_VERIFICATION:
+            manual_queue.append(label)
+
     last_event_time: dict[str, datetime] = {}
     for item in selected_events:
         event_id = str(item.get("event_id", ""))
@@ -863,6 +1104,15 @@ def audit_records(
             errors.append(
                 f"{item.get('campaign_id', '')}/{item.get('queue_id', '')}: executed article state requires an event"
             )
+    for item in selected_social_posts:
+        target = (
+            "social", str(item.get("campaign_id", "")), str(item.get("queue_id", "")),
+            str(item.get("idempotency_key", "")),
+        )
+        if str(item.get("status", "")) in SOCIAL_EXECUTED and target not in event_targets:
+            errors.append(
+                f"{item.get('campaign_id', '')}/{item.get('queue_id', '')}: executed social state requires an event"
+            )
 
     return {
         "valid": not errors,
@@ -870,9 +1120,11 @@ def audit_records(
         "warnings": warnings,
         "total_sites": len(selected_submissions),
         "total_articles": len(selected_articles),
-        "total_records": len(selected_submissions) + len(selected_articles),
+        "total_social_posts": len(selected_social_posts),
+        "total_records": len(selected_submissions) + len(selected_articles) + len(selected_social_posts),
         "status_counts": dict(sorted(status_counts.items())),
         "article_status_counts": dict(sorted(article_status_counts.items())),
+        "social_status_counts": dict(sorted(social_status_counts.items())),
         "verification_counts": dict(sorted(verification_counts.items())),
         "shard_counts": dict(sorted(shard_counts.items())),
         "manual_verification_queue": manual_queue,
@@ -884,8 +1136,10 @@ def export_campaign_markdown(
     submissions: list[dict[str, object]],
     events: list[dict[str, object]],
     articles: list[dict[str, object]] | None = None,
+    social_posts: list[dict[str, object]] | None = None,
 ) -> str:
     articles = articles or []
+    social_posts = social_posts or []
     control_labels = [
         ("Workflow version", "workflow_version"), ("Campaign mode", "campaign_mode"),
         ("Campaign ID", "campaign_id"),
@@ -897,7 +1151,7 @@ def export_campaign_markdown(
     ]
     lines = [
         f"# {campaign['campaign_id']} — Backlink Operations Record", "",
-        f"Last checked: {max((str(item.get('last_checked', '')) for item in submissions + articles), default='')}",
+        f"Last checked: {max((str(item.get('last_checked', '')) for item in submissions + articles + social_posts), default='')}",
         "", "## Campaign controls", "",
     ]
     if campaign.get("workflow_version") == "SPD V1 Batch":
@@ -962,6 +1216,40 @@ def export_campaign_markdown(
         lines.extend(f"- {label}: {article.get(key, '')}" for label, key in article_labels)
         lines.extend(["", "### Attempt log", ""])
         related = [item for item in events if item.get("idempotency_key") == article.get("idempotency_key")]
+        if related:
+            for event in related:
+                lines.append(
+                    f"- {event['timestamp']} | event_id={event['event_id']} | action={event['action']} "
+                    f"| result={event['result']} | evidence={event['evidence_reference']}"
+                )
+        else:
+            lines.append("- none")
+    social_labels = [
+        ("Social post ID", "social_post_id"), ("Queue ID", "queue_id"),
+        ("Platform domain", "platform_domain"), ("Editor URL", "website"),
+        ("Post type", "post_type"), ("Title", "title"), ("Text", "post_text"),
+        ("Status", "status"), ("Public URL", "public_url"), ("Target URL", "target_url"),
+        ("Outbound href", "outbound_href"), ("Board/channel", "board_or_channel"),
+        ("Media reference", "media_reference"), ("AI disclosure", "ai_disclosure"),
+        ("UTM source", "utm_source"), ("UTM medium", "utm_medium"),
+        ("UTM campaign", "utm_campaign"), ("Exact result", "exact_result"),
+        ("Follow-up", "follow_up"), ("Verification preflight", "verification_preflight"),
+        ("Published at", "published_at"), ("Last checked", "last_checked"),
+        ("Route", "route"), ("Account alias", "account_alias"),
+        ("Idempotency key", "idempotency_key"), ("Legitimacy gate", "legitimacy_gate"),
+        ("Authorization reference", "authorization_reference"),
+        ("Evidence reference", "evidence_reference"),
+        ("Content fingerprint", "content_fingerprint"),
+        ("Public page checked", "public_page_checked"),
+        ("Outbound link checked", "outbound_link_checked"), ("Media checked", "media_checked"),
+        ("Backend checked", "backend_checked"), ("Mailbox checked", "mailbox_checked"),
+        ("Execution method", "execution_method"), ("Execution notes", "execution_notes"),
+    ]
+    for post in social_posts:
+        lines.extend(["", f"## Social {post['queue_id']} — {post['platform_domain']}", ""])
+        lines.extend(f"- {label}: {post.get(key, '')}" for label, key in social_labels)
+        lines.extend(["", "### Attempt log", ""])
+        related = [item for item in events if item.get("idempotency_key") == post.get("idempotency_key")]
         if related:
             for event in related:
                 lines.append(

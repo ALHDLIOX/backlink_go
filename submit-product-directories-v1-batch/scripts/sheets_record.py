@@ -24,15 +24,19 @@ from record_model import (
     DROPDOWNS,
     EVENT_HEADERS,
     EXECUTED,
+    HEADER_LABELS,
     LEGACY_SCHEMA_VERSION,
     LEGACY_TABLE_HEADERS,
+    PREVIOUS_SCHEMA_VERSION,
     PLATFORM_HEADERS,
     SCHEMA_VERSION,
+    SCHEMA_V5_TABLE_HEADERS,
+    SOCIAL_EXECUTED,
+    SOCIAL_POST_HEADERS,
     SUBMISSION_HEADERS,
     TABLE_HEADERS,
     compact_record_timestamps,
     display_headers,
-    legacy_display_headers,
     migrate_legacy_record,
     RecordValidationError,
     audit_records,
@@ -46,6 +50,7 @@ from record_model import (
     validate_article,
     validate_event,
     validate_platform,
+    validate_social_post,
     validate_submission,
 )
 
@@ -111,6 +116,26 @@ def fixed_option_colors() -> dict[tuple[str, str], dict[str, tuple[dict[str, flo
         "duplicate — no action": COLOR_GRAY,
         "terminated by user": COLOR_GRAY,
     }
+    social_status = {
+        "published": COLOR_GREEN,
+        "scheduled": COLOR_BLUE,
+        "composing": COLOR_YELLOW,
+        "editor in progress": COLOR_YELLOW,
+        "draft saved": COLOR_YELLOW,
+        "publication outcome unknown": COLOR_YELLOW,
+        "awaiting email verification": COLOR_BLUE,
+        "blocked — manual verification": COLOR_RED,
+        "blocked — missing verified data": COLOR_RED,
+        "blocked — account or email policy": COLOR_RED,
+        "rejected": COLOR_RED,
+        "removed": COLOR_RED,
+        "unavailable": COLOR_RED,
+        "paid-only": COLOR_RED,
+        "ineligible": COLOR_RED,
+        "not attempted": COLOR_GRAY,
+        "duplicate — no action": COLOR_GRAY,
+        "terminated by user": COLOR_GRAY,
+    }
     return {
         ("Platforms", "account_required"): {"yes": COLOR_BLUE, "no": COLOR_GREEN, "unknown": COLOR_GRAY},
         ("Platforms", "cost_model"): {
@@ -127,7 +152,8 @@ def fixed_option_colors() -> dict[tuple[str, str], dict[str, tuple[dict[str, flo
             "social": COLOR_YELLOW, "unknown": COLOR_GRAY,
         },
         ("Campaigns", "campaign_mode"): {
-            "directory": COLOR_BLUE, "article": COLOR_GREEN, "mixed": COLOR_YELLOW,
+            "directory": COLOR_BLUE, "article": COLOR_GREEN, "social": COLOR_YELLOW,
+            "mixed": COLOR_YELLOW,
         },
         ("Submissions", "status"): status,
         ("Submissions", "verification_preflight"): verification,
@@ -139,7 +165,22 @@ def fixed_option_colors() -> dict[tuple[str, str], dict[str, tuple[dict[str, flo
         ("Articles", "legitimacy_gate"): {
             "passed": COLOR_GREEN, "failed": COLOR_RED, "not checked": COLOR_GRAY,
         },
-        ("Events", "record_type"): {"submission": COLOR_BLUE, "article": COLOR_GREEN},
+        ("SocialPosts", "status"): social_status,
+        ("SocialPosts", "post_type"): {
+            "pin": COLOR_BLUE, "short post": COLOR_GREEN, "image post": COLOR_GREEN,
+            "link post": COLOR_BLUE, "thread": COLOR_YELLOW, "other": COLOR_GRAY,
+        },
+        ("SocialPosts", "ai_disclosure"): {
+            "applied": COLOR_GREEN, "not required": COLOR_BLUE,
+            "not available": COLOR_YELLOW, "unknown": COLOR_GRAY,
+        },
+        ("SocialPosts", "verification_preflight"): verification,
+        ("SocialPosts", "legitimacy_gate"): {
+            "passed": COLOR_GREEN, "failed": COLOR_RED, "not checked": COLOR_GRAY,
+        },
+        ("Events", "record_type"): {
+            "submission": COLOR_BLUE, "article": COLOR_GREEN, "social": COLOR_YELLOW,
+        },
     }
 
 
@@ -500,41 +541,47 @@ def _cell_row(values: list[object]) -> dict[str, object]:
     }
 
 
-def schema_v5_migration_requests(
+def schema_v6_migration_requests(
     properties: dict[str, dict[str, Any]],
     records: dict[str, list[dict[str, str]]],
+    source_headers: dict[str, list[str]],
 ) -> list[dict[str, Any]]:
-    """Build one atomic Sheets batchUpdate from schema v4 to schema v5."""
-    article_sheet_id = max(int(item["sheetId"]) for item in properties.values()) + 1
+    """Build one atomic Sheets batchUpdate from schema v4/v5 to schema v6."""
+    next_sheet_id = max(int(item["sheetId"]) for item in properties.values()) + 1
     current_properties = {name: dict(item) for name, item in properties.items()}
-    current_properties["Articles"] = {
-        "sheetId": article_sheet_id,
-        "title": "Articles",
-        "gridProperties": {
-            "rowCount": 1000,
-            "columnCount": len(ARTICLE_HEADERS),
-            "frozenRowCount": 1,
-        },
-        "index": list(TABLE_HEADERS).index("Articles"),
-        "_conditionalRuleCount": 0,
-    }
-    requests: list[dict[str, Any]] = [
-        {
-            "addSheet": {
-                "properties": {
-                    key: value for key, value in current_properties["Articles"].items()
-                    if not key.startswith("_")
-                },
-            }
+    requests: list[dict[str, Any]] = []
+    for tab_name, headers in TABLE_HEADERS.items():
+        if tab_name in current_properties:
+            continue
+        current_properties[tab_name] = {
+            "sheetId": next_sheet_id,
+            "title": tab_name,
+            "gridProperties": {
+                "rowCount": 1000,
+                "columnCount": len(headers),
+                "frozenRowCount": 1,
+            },
+            "index": list(TABLE_HEADERS).index(tab_name),
+            "_conditionalRuleCount": 0,
         }
-    ]
+        next_sheet_id += 1
+        requests.append(
+            {
+                "addSheet": {
+                    "properties": {
+                        key: value for key, value in current_properties[tab_name].items()
+                        if not key.startswith("_")
+                    }
+                }
+            }
+        )
     for tab_name, new_headers in TABLE_HEADERS.items():
         sheet_id = current_properties[tab_name]["sheetId"]
-        legacy_count = len(LEGACY_TABLE_HEADERS.get(tab_name, new_headers))
+        previous_count = len(source_headers.get(tab_name, new_headers))
         rows = [display_headers(tab_name)] + [
             row_values(new_headers, item) for item in records.get(tab_name, [])
         ]
-        if tab_name != "Articles":
+        if tab_name in source_headers:
             requests.append({"clearBasicFilter": {"sheetId": sheet_id}})
             requests.append(
                 {
@@ -543,7 +590,7 @@ def schema_v5_migration_requests(
                             "sheetId": sheet_id,
                             "startRowIndex": 1,
                             "startColumnIndex": 0,
-                            "endColumnIndex": legacy_count,
+                            "endColumnIndex": previous_count,
                         }
                     }
                 }
@@ -632,8 +679,8 @@ def schema_v5_migration_requests(
     return requests
 
 
-def migrate_schema_v5(config_dir: Path) -> dict[str, object]:
-    """Migrate the configured workbook from schema v4 to unified article records."""
+def migrate_schema_v6(config_dir: Path) -> dict[str, object]:
+    """Migrate the configured workbook from schema v4/v5 to social records."""
     config_path = config_dir / "v1-sheets.json"
     require_private_file(config_path)
     config = read_json_file(config_path)
@@ -643,7 +690,8 @@ def migrate_schema_v5(config_dir: Path) -> dict[str, object]:
     if config.get("schema_version") == SCHEMA_VERSION:
         store.verify_schema()
         return {"migrated": False, "schema_version": SCHEMA_VERSION, "reason": "already current"}
-    if config.get("schema_version") != LEGACY_SCHEMA_VERSION:
+    source_version = str(config.get("schema_version", ""))
+    if source_version not in {LEGACY_SCHEMA_VERSION, PREVIOUS_SCHEMA_VERSION}:
         raise RecordValidationError("workbook config is invalid or unsupported")
 
     metadata = store.metadata()
@@ -657,21 +705,30 @@ def migrate_schema_v5(config_dir: Path) -> dict[str, object]:
         write_private_json(config_path, config)
         return {"migrated": False, "schema_version": SCHEMA_VERSION, "reason": "reconciled config"}
 
-    store.verify_schema(LEGACY_SCHEMA_VERSION, LEGACY_TABLE_HEADERS)
+    source_headers = (
+        LEGACY_TABLE_HEADERS if source_version == LEGACY_SCHEMA_VERSION else SCHEMA_V5_TABLE_HEADERS
+    )
+    store.verify_schema(source_version, source_headers)
     migrated_records: dict[str, list[dict[str, str]]] = {}
-    for tab_name, legacy_headers in LEGACY_TABLE_HEADERS.items():
-        values = store._read_values(f"'{tab_name}'!A2:{column_letter(len(legacy_headers))}")
-        migrated_records[tab_name] = [
-            migrate_legacy_record(tab_name, item)
-            for item in rows_to_records(legacy_headers, values)
-        ]
-    migrated_records["Articles"] = []
+    for tab_name, old_headers in source_headers.items():
+        values = store._read_values(f"'{tab_name}'!A2:{column_letter(len(old_headers))}")
+        source_records = rows_to_records(old_headers, values)
+        if source_version == LEGACY_SCHEMA_VERSION:
+            migrated_records[tab_name] = [migrate_legacy_record(tab_name, item) for item in source_records]
+        else:
+            migrated_records[tab_name] = [
+                compact_record_timestamps({key: str(item.get(key, "")) for key in TABLE_HEADERS[tab_name]})
+                for item in source_records
+            ]
+    for tab_name in TABLE_HEADERS:
+        migrated_records.setdefault(tab_name, [])
     audit = audit_records(
         campaigns=migrated_records["Campaigns"],
         submissions=migrated_records["Submissions"],
         events=migrated_records["Events"],
         platforms=migrated_records["Platforms"],
         articles=migrated_records["Articles"],
+        social_posts=migrated_records["SocialPosts"],
     )
     if not audit["valid"]:
         raise RecordValidationError("migrated data failed validation: " + "; ".join(audit["errors"]))
@@ -682,17 +739,22 @@ def migrate_schema_v5(config_dir: Path) -> dict[str, object]:
         properties[item["title"]] = item
     store.service.spreadsheets().batchUpdate(
         spreadsheetId=store.spreadsheet_id,
-        body={"requests": schema_v5_migration_requests(properties, migrated_records)},
+        body={"requests": schema_v6_migration_requests(properties, migrated_records, source_headers)},
     ).execute()
     store.verify_schema()
     config["schema_version"] = SCHEMA_VERSION
     write_private_json(config_path, config)
     return {
         "migrated": True,
-        "from_schema_version": LEGACY_SCHEMA_VERSION,
+        "from_schema_version": source_version,
         "schema_version": SCHEMA_VERSION,
         "rows": {name: len(items) for name, items in migrated_records.items()},
     }
+
+
+def migrate_schema_v5(config_dir: Path) -> dict[str, object]:
+    """Compatibility alias that migrates an old workbook to the current schema."""
+    return migrate_schema_v6(config_dir)
 
 
 @contextmanager
@@ -851,11 +913,7 @@ class GoogleSheetsStore:
                 raise RecordValidationError(f"schema drift in {tab_name} grid properties")
             actual = self._read_values(f"'{tab_name}'!A1:{column_letter(len(headers))}1")
             actual_headers = actual[0] if actual else []
-            expected_headers = (
-                display_headers(tab_name)
-                if schema_version == SCHEMA_VERSION
-                else legacy_display_headers(tab_name)
-            )
+            expected_headers = [HEADER_LABELS[header] for header in headers]
             if actual_headers != expected_headers:
                 raise RecordValidationError(f"schema drift in {tab_name} headers")
         return metadata
@@ -975,6 +1033,7 @@ def upsert(store: GoogleSheetsStore, kind: str, payload: dict[str, Any]) -> dict
         "campaign": ("Campaigns", "campaign_id", CAMPAIGN_HEADERS, validate_campaign),
         "submission": ("Submissions", "idempotency_key", SUBMISSION_HEADERS, validate_submission),
         "article": ("Articles", "idempotency_key", ARTICLE_HEADERS, validate_article),
+        "social": ("SocialPosts", "idempotency_key", SOCIAL_POST_HEADERS, validate_social_post),
     }
     if kind == "campaign":
         payload = normalize_campaign_input(payload)
@@ -993,10 +1052,11 @@ def upsert(store: GoogleSheetsStore, kind: str, payload: dict[str, Any]) -> dict
     if len(matches) > 1:
         raise RecordValidationError(f"duplicate {key_field} rows found in {tab_name}")
     found = matches[0] if matches else None
-    if kind in {"submission", "article"}:
-        other_tab = "Articles" if kind == "submission" else "Submissions"
-        if store.find(other_tab, "idempotency_key", key_value):
-            raise RecordValidationError("idempotency_key already belongs to another record type")
+    if kind in {"submission", "article", "social"}:
+        record_tabs = {"submission": "Submissions", "article": "Articles", "social": "SocialPosts"}
+        for other_kind, other_tab in record_tabs.items():
+            if other_kind != kind and store.find(other_tab, "idempotency_key", key_value):
+                raise RecordValidationError("idempotency_key already belongs to another record type")
         campaign = store.find("Campaigns", "campaign_id", str(payload.get("campaign_id", "")))
         platform = store.find("Platforms", "platform_id", str(payload.get("platform_id", "")))
         if not campaign:
@@ -1020,6 +1080,11 @@ def upsert(store: GoogleSheetsStore, kind: str, payload: dict[str, Any]) -> dict
                 raise RecordValidationError("executed article requires article or mixed campaign mode")
             if platform[1].get("platform_type") not in {"article", "mixed"}:
                 raise RecordValidationError("executed article requires article or mixed platform type")
+        if kind == "social" and status in SOCIAL_EXECUTED:
+            if campaign[1].get("campaign_mode") not in {"social", "mixed"}:
+                raise RecordValidationError("executed social post requires social or mixed campaign mode")
+            if platform[1].get("platform_type") not in {"social", "mixed"}:
+                raise RecordValidationError("executed social post requires social or mixed platform type")
         if found and found[1].get("campaign_id") != str(payload.get("campaign_id")):
             raise RecordValidationError("idempotency_key already belongs to another campaign")
         if kind == "article":
@@ -1035,7 +1100,14 @@ def upsert(store: GoogleSheetsStore, kind: str, payload: dict[str, Any]) -> dict
                     and record.get("idempotency_key") != key_value
                 ):
                     raise RecordValidationError("content_fingerprint already belongs to another article")
-        for candidate_tab in ("Submissions", "Articles"):
+        if kind == "social":
+            for record in existing_records:
+                if (
+                    record.get("social_post_id") == str(payload.get("social_post_id"))
+                    and record.get("idempotency_key") != key_value
+                ):
+                    raise RecordValidationError("social_post_id already belongs to another social post")
+        for candidate_tab in ("Submissions", "Articles", "SocialPosts"):
             candidate_records = existing_records if candidate_tab == tab_name else store.records(candidate_tab)
             for record in candidate_records:
                 if record.get("campaign_id") != str(payload.get("campaign_id")):
@@ -1050,7 +1122,9 @@ def upsert(store: GoogleSheetsStore, kind: str, payload: dict[str, Any]) -> dict
                     )
                     if same_url and different_key:
                         raise RecordValidationError("normalized website already exists in this campaign")
-        executed_statuses = EXECUTED if kind == "submission" else ARTICLE_EXECUTED
+        executed_statuses = {
+            "submission": EXECUTED, "article": ARTICLE_EXECUTED, "social": SOCIAL_EXECUTED,
+        }[kind]
         if str(payload.get("status", "")) in executed_statuses:
             linked_events = [
                 event for event in store.records("Events")
@@ -1075,19 +1149,27 @@ def upsert(store: GoogleSheetsStore, kind: str, payload: dict[str, Any]) -> dict
                 "key": key_value,
                 "row_version": str(found[1].get("row_version", "")),
             }
-        if kind in {"submission", "article"}:
+        if kind in {"submission", "article", "social"}:
             previous_status = str(found[1].get("status", ""))
             next_status = str(payload.get("status", ""))
-            protected_statuses = (
-                {"submitted", "submission outcome unknown", "awaiting approval", "awaiting email verification", "published"}
-                if kind == "submission"
-                else {"submitted for review", "publication outcome unknown", "awaiting email verification", "published"}
-            )
-            reopening_statuses = (
-                {"not attempted", "form in progress", "draft saved"}
-                if kind == "submission"
-                else {"not attempted", "writing", "editor in progress", "draft saved"}
-            )
+            protected_statuses = {
+                "submission": {
+                    "submitted", "submission outcome unknown", "awaiting approval",
+                    "awaiting email verification", "published",
+                },
+                "article": {
+                    "submitted for review", "publication outcome unknown",
+                    "awaiting email verification", "published",
+                },
+                "social": {
+                    "scheduled", "publication outcome unknown", "awaiting email verification", "published",
+                },
+            }[kind]
+            reopening_statuses = {
+                "submission": {"not attempted", "form in progress", "draft saved"},
+                "article": {"not attempted", "writing", "editor in progress", "draft saved"},
+                "social": {"not attempted", "composing", "editor in progress", "draft saved"},
+            }[kind]
             if previous_status in protected_statuses and next_status in reopening_statuses:
                 raise RecordValidationError("completed or pending idempotency key cannot be reopened")
         expected_version = str(payload.pop("expected_row_version", "")).strip()
@@ -1130,7 +1212,9 @@ def append_event(store: GoogleSheetsStore, payload: dict[str, Any]) -> dict[str,
         if records_equal(EVENT_HEADERS, prepared, found[1]):
             return {"action": "already-recorded", "table": "Events", "key": event_id}
         raise RecordValidationError("event_id already exists with different content")
-    target_tab = "Submissions" if prepared["record_type"] == "submission" else "Articles"
+    target_tab = {
+        "submission": "Submissions", "article": "Articles", "social": "SocialPosts",
+    }[prepared["record_type"]]
     target = store.find(target_tab, "idempotency_key", prepared["idempotency_key"])
     if not target:
         raise RecordValidationError("event references an unknown idempotency_key")
@@ -1167,6 +1251,7 @@ def workbook_audit(store: GoogleSheetsStore, campaign_id: str | None) -> dict[st
         platforms=store.records("Platforms"),
         campaign_id=campaign_id,
         articles=store.records("Articles"),
+        social_posts=store.records("SocialPosts"),
     )
 
 
@@ -1216,6 +1301,53 @@ def article_history(
     return selected
 
 
+def social_fingerprint(source: Path) -> dict[str, object]:
+    """Hash a social post without returning its text."""
+    payload = read_json_file(source)
+    required = ("title", "post_text", "target_url", "media_reference")
+    missing = [field for field in required if not isinstance(payload.get(field), str) or not payload[field].strip()]
+    if missing:
+        raise RecordValidationError("social fingerprint input missing: " + ", ".join(missing))
+    if not re.match(r"^https?://", payload["target_url"].strip(), flags=re.I):
+        raise RecordValidationError("social fingerprint target_url must be public")
+
+    def canonical(value: str) -> str:
+        normalized = unicodedata.normalize("NFC", value).replace("\r\n", "\n").replace("\r", "\n")
+        return "\n".join(line.rstrip() for line in normalized.strip().splitlines())
+
+    material = "\n\0\n".join(canonical(payload[field]) for field in required).encode("utf-8")
+    return {
+        "content_fingerprint": "sha256:" + hashlib.sha256(material).hexdigest(),
+        "character_count": len(payload["post_text"]),
+        "text_echoed": False,
+    }
+
+
+def social_history(
+    store: GoogleSheetsStore,
+    product_id: str,
+    platform_domain: str | None = None,
+) -> list[dict[str, str]]:
+    store.verify_schema()
+    selected = []
+    for item in store.records("SocialPosts"):
+        if item.get("product_canonical_id") != product_id:
+            continue
+        if platform_domain and item.get("platform_domain", "").lower() != platform_domain.lower():
+            continue
+        selected.append(
+            {
+                key: item.get(key, "")
+                for key in (
+                    "social_post_id", "platform_domain", "post_type", "title", "status", "public_url",
+                    "target_url", "board_or_channel", "media_reference", "ai_disclosure",
+                    "content_fingerprint", "last_checked", "campaign_id",
+                )
+            }
+        )
+    return selected
+
+
 def dry_run(command: str, payload: dict[str, Any] | None = None, title: str | None = None) -> dict[str, object]:
     if command == "init":
         return {
@@ -1232,12 +1364,14 @@ def dry_run(command: str, payload: dict[str, Any] | None = None, title: str | No
         "upsert-campaign": "campaign",
         "upsert-submission": "submission",
         "upsert-article": "article",
+        "upsert-social-post": "social",
         "append-event": "event",
     }[command]
     prepared = prepare_record(kind, payload)
     key_field = {
         "platform": "platform_id", "campaign": "campaign_id",
-        "submission": "idempotency_key", "article": "idempotency_key", "event": "event_id",
+        "submission": "idempotency_key", "article": "idempotency_key",
+        "social": "idempotency_key", "event": "event_id",
     }[kind]
     return {
         "dry_run": True,
@@ -1265,8 +1399,12 @@ def parser() -> argparse.ArgumentParser:
     commands.add_parser("doctor")
     commands.add_parser("format-workbook")
     commands.add_parser("migrate-schema-v5")
+    commands.add_parser("migrate-schema-v6")
 
-    for name in ("upsert-platform", "upsert-campaign", "upsert-submission", "upsert-article", "append-event"):
+    for name in (
+        "upsert-platform", "upsert-campaign", "upsert-submission", "upsert-article",
+        "upsert-social-post", "append-event",
+    ):
         item = commands.add_parser(name)
         item.add_argument("--input", type=Path, required=True)
         item.add_argument("--dry-run", action="store_true")
@@ -1284,8 +1422,15 @@ def parser() -> argparse.ArgumentParser:
     history_parser.add_argument("--platform-domain")
     history_parser.add_argument("--json", action="store_true")
 
+    social_history_parser = commands.add_parser("social-history")
+    social_history_parser.add_argument("--product-id", required=True)
+    social_history_parser.add_argument("--platform-domain")
+    social_history_parser.add_argument("--json", action="store_true")
+
     fingerprint_parser = commands.add_parser("fingerprint-article")
     fingerprint_parser.add_argument("--input", type=Path, required=True)
+    social_fingerprint_parser = commands.add_parser("fingerprint-social-post")
+    social_fingerprint_parser.add_argument("--input", type=Path, required=True)
     return result
 
 
@@ -1317,9 +1462,9 @@ def main(argv: list[str] | None = None) -> int:
                     write_private_json(config_dir / "v1-sheets.json", config)
                     store.verify_schema()
                 output = config
-        elif args.command == "migrate-schema-v5":
+        elif args.command in {"migrate-schema-v5", "migrate-schema-v6"}:
             with writer_lock(config_dir):
-                output = migrate_schema_v5(config_dir)
+                output = migrate_schema_v6(config_dir)
         elif args.command == "doctor":
             store = load_store(config_dir)
             metadata = store.verify_schema()
@@ -1343,7 +1488,14 @@ def main(argv: list[str] | None = None) -> int:
                     if args.command == "append-event":
                         output = append_event(store, payload)
                     else:
-                        output = upsert(store, args.command.removeprefix("upsert-"), payload)
+                        kind = {
+                            "upsert-platform": "platform",
+                            "upsert-campaign": "campaign",
+                            "upsert-submission": "submission",
+                            "upsert-article": "article",
+                            "upsert-social-post": "social",
+                        }[args.command]
+                        output = upsert(store, kind, payload)
         elif args.command == "audit":
             result = workbook_audit(load_store(config_dir), args.campaign_id)
             if args.json:
@@ -1352,6 +1504,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"Valid: {result['valid']}")
                 print(f"Total sites: {result['total_sites']}")
                 print(f"Total articles: {result['total_articles']}")
+                print(f"Total social posts: {result['total_social_posts']}")
                 for key, count in result["status_counts"].items():
                     print(f"{key}: {count}")
                 for key, count in result["shard_counts"].items():
@@ -1373,11 +1526,15 @@ def main(argv: list[str] | None = None) -> int:
             articles = [
                 item for item in store.records("Articles") if item["campaign_id"] == args.campaign_id
             ]
-            keys = {item["idempotency_key"] for item in submissions + articles}
+            social_posts = [
+                item for item in store.records("SocialPosts") if item["campaign_id"] == args.campaign_id
+            ]
+            keys = {item["idempotency_key"] for item in submissions + articles + social_posts}
             events = [item for item in store.records("Events") if item["idempotency_key"] in keys]
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(
-                export_campaign_markdown(campaigns[0], submissions, events, articles), encoding="utf-8"
+                export_campaign_markdown(campaigns[0], submissions, events, articles, social_posts),
+                encoding="utf-8",
             )
             output = {"exported": True, "campaign_id": args.campaign_id, "output": str(args.output)}
         elif args.command == "article-history":
@@ -1392,6 +1549,21 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         elif args.command == "fingerprint-article":
             output = article_fingerprint(args.input)
+        elif args.command == "social-history":
+            items = social_history(load_store(config_dir), args.product_id, args.platform_domain)
+            if args.json:
+                print(json.dumps({"social_posts": items, "count": len(items)}, ensure_ascii=False, indent=2))
+            else:
+                for item in items:
+                    print(
+                        f"{item['social_post_id']} | {item['platform_domain']} | "
+                        f"{item['status']} | {item['title']}"
+                    )
+                if not items:
+                    print("No social history found")
+            return 0
+        elif args.command == "fingerprint-social-post":
+            output = social_fingerprint(args.input)
         else:  # pragma: no cover
             raise RecordValidationError("unknown command")
         print(json.dumps(output, ensure_ascii=False, indent=2))
