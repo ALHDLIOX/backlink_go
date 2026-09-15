@@ -1,6 +1,6 @@
-# Backlink Operations schema 7
+# Backlink Operations schema 8
 
-Google Sheets is the authoritative V1 record store. Schema 7 has four worksheets: `Platforms`, `Campaigns`, `Placements`, and append-only `Events`. Directory, article, and social execution lanes all write the same Placement model. Business time is `YYYY-MM-DD HH:MM`.
+Google Sheets is the authoritative V1 record store. Schema 8 has four worksheets: `Platforms`, `Campaigns`, `Placements`, and append-only `Events`. Directory, article, and social execution lanes all write the same Placement model. Business time is `YYYY-MM-DD HH:MM`.
 
 ## Platforms and Campaigns
 
@@ -10,7 +10,7 @@ Google Sheets is the authoritative V1 record store. Schema 7 has four worksheets
 
 ## Placements
 
-Human-review columns come first: platform domain, operation page, status, public page, actual backlink, anchor text, exact result, follow-up, verification summary, action time, and last check. System columns follow: placement/queue/product/campaign/platform IDs, route, account alias, idempotency key, authorization/evidence references, execution method/notes, and row version.
+The product ID is the first column so records can be grouped visually by product. Human-review columns then follow: platform domain, operation page, status, public page, actual backlink, anchor text, exact result, follow-up, verification summary, action time, and last check. System columns follow: placement/queue/campaign/platform IDs, route, account alias, idempotency key, authorization/evidence references, execution method/notes, and row version.
 
 Do not store titles, content bodies, media or Board/channel details, AI labels, split UTM fields, platform/record types, `rel`, Canonical policy, content fingerprints, or agreement/subscription details. A full backlink URL may naturally include tracking parameters; there are no separate UTM columns.
 

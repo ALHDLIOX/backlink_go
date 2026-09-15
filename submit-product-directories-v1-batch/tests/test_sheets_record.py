@@ -70,7 +70,7 @@ class MemoryStore:
 class SchemaTests(unittest.TestCase):
     def test_schema_is_four_readable_sheets(self):
         self.assertEqual(list(MODEL.TABLE_HEADERS), ["Platforms", "Campaigns", "Placements", "Events"])
-        self.assertEqual(MODEL.display_headers("Placements")[:6], ["平台域名", "操作页面", "状态", "公开页面", "实际外链", "锚文本"])
+        self.assertEqual(MODEL.display_headers("Placements")[:7], ["产品编号", "平台域名", "操作页面", "状态", "公开页面", "实际外链", "锚文本"])
         body = SHEETS.workbook_create_body("Backlink Operations")
         self.assertEqual(len(body["sheets"]), 4)
         self.assertTrue(all(s["properties"]["gridProperties"]["frozenRowCount"] == 1 for s in body["sheets"]))
@@ -93,10 +93,22 @@ class SchemaTests(unittest.TestCase):
     def test_v6_migration_replaces_three_tabs(self):
         props = {n: {"sheetId": i} for i, n in enumerate(MODEL.SCHEMA_V6_TABLE_HEADERS, 1)}
         records = {n: [] for n in MODEL.TABLE_HEADERS}
-        requests = SHEETS.schema_v7_migration_requests(props, records, MODEL.SCHEMA_V6_TABLE_HEADERS)
+        requests = SHEETS.schema_v8_migration_requests(props, records, MODEL.SCHEMA_V6_TABLE_HEADERS)
         self.assertEqual([r["deleteSheet"]["sheetId"] for r in requests if "deleteSheet" in r], [3, 4, 5])
         added = [r["addSheet"]["properties"]["title"] for r in requests if "addSheet" in r]
         self.assertEqual(added, ["Placements"])
+
+    def test_v7_migration_reorders_existing_placement_without_deleting_it(self):
+        props = {n: {"sheetId": i} for i, n in enumerate(MODEL.SCHEMA_V7_TABLE_HEADERS, 1)}
+        records = {n: [] for n in MODEL.TABLE_HEADERS}
+        requests = SHEETS.schema_v8_migration_requests(props, records, MODEL.SCHEMA_V7_TABLE_HEADERS)
+        self.assertFalse(any("addSheet" in item or "deleteSheet" in item for item in requests))
+        placement_update = next(
+            item["updateCells"] for item in requests
+            if "updateCells" in item and item["updateCells"]["range"]["sheetId"] == props["Placements"]["sheetId"]
+        )
+        first_header = placement_update["rows"][0]["values"][0]["userEnteredValue"]["stringValue"]
+        self.assertEqual(first_header, "产品编号")
 
 class ValidationTests(unittest.TestCase):
     def test_timestamp_is_compact(self):

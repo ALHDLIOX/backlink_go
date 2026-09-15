@@ -31,6 +31,7 @@ from record_model import (
     SCHEMA_VERSION,
     SCHEMA_V5_TABLE_HEADERS,
     SCHEMA_V6_TABLE_HEADERS,
+    SCHEMA_V7_TABLE_HEADERS,
     TABLE_HEADERS,
     compact_record_timestamps,
     display_headers,
@@ -442,7 +443,7 @@ def _cell_row(values: list[object]) -> dict[str, object]:
     }
 
 
-def schema_v7_migration_requests(
+def schema_v8_migration_requests(
     properties: dict[str, dict[str, Any]],
     records: dict[str, list[dict[str, str]]],
     source_headers: dict[str, list[str]],
@@ -586,8 +587,8 @@ def schema_v7_migration_requests(
     return requests
 
 
-def migrate_schema_v7(config_dir: Path) -> dict[str, object]:
-    """Migrate the configured workbook from schema v4/v5/v6 to Placements."""
+def migrate_schema_v8(config_dir: Path) -> dict[str, object]:
+    """Migrate the configured workbook from schema v4-v7 to schema v8."""
     config_path = config_dir / "v1-sheets.json"
     require_private_file(config_path)
     config = read_json_file(config_path)
@@ -598,7 +599,7 @@ def migrate_schema_v7(config_dir: Path) -> dict[str, object]:
         store.verify_schema()
         return {"migrated": False, "schema_version": SCHEMA_VERSION, "reason": "already current"}
     source_version = str(config.get("schema_version", ""))
-    if source_version not in {LEGACY_SCHEMA_VERSION, "5", PREVIOUS_SCHEMA_VERSION}:
+    if source_version not in {LEGACY_SCHEMA_VERSION, "5", "6", PREVIOUS_SCHEMA_VERSION}:
         raise RecordValidationError("workbook config is invalid or unsupported")
 
     metadata = store.metadata()
@@ -613,7 +614,9 @@ def migrate_schema_v7(config_dir: Path) -> dict[str, object]:
         return {"migrated": False, "schema_version": SCHEMA_VERSION, "reason": "reconciled config"}
 
     source_headers = LEGACY_TABLE_HEADERS if source_version == LEGACY_SCHEMA_VERSION else (
-        SCHEMA_V5_TABLE_HEADERS if source_version == "5" else SCHEMA_V6_TABLE_HEADERS
+        SCHEMA_V5_TABLE_HEADERS if source_version == "5" else (
+            SCHEMA_V6_TABLE_HEADERS if source_version == "6" else SCHEMA_V7_TABLE_HEADERS
+        )
     )
     store.verify_schema(source_version, source_headers)
     source_records_by_tab: dict[str, list[dict[str, str]]] = {}
@@ -624,9 +627,15 @@ def migrate_schema_v7(config_dir: Path) -> dict[str, object]:
             [migrate_legacy_record(tab_name, item) for item in source_records]
             if source_version == LEGACY_SCHEMA_VERSION else source_records
         )
-    source_records_by_tab.setdefault("Articles", [])
-    source_records_by_tab.setdefault("SocialPosts", [])
-    migrated_records = migrate_v6_records(source_records_by_tab)
+    if source_version == "7":
+        migrated_records = {
+            tab_name: [compact_record_timestamps({key: str(item.get(key, "")) for key in TABLE_HEADERS[tab_name]}) for item in items]
+            for tab_name, items in source_records_by_tab.items()
+        }
+    else:
+        source_records_by_tab.setdefault("Articles", [])
+        source_records_by_tab.setdefault("SocialPosts", [])
+        migrated_records = migrate_v6_records(source_records_by_tab)
     audit = audit_records(
         campaigns=migrated_records["Campaigns"],
         placements=migrated_records["Placements"],
@@ -642,7 +651,7 @@ def migrate_schema_v7(config_dir: Path) -> dict[str, object]:
         properties[item["title"]] = item
     store.service.spreadsheets().batchUpdate(
         spreadsheetId=store.spreadsheet_id,
-        body={"requests": schema_v7_migration_requests(properties, migrated_records, source_headers)},
+        body={"requests": schema_v8_migration_requests(properties, migrated_records, source_headers)},
     ).execute()
     store.verify_schema()
     config["schema_version"] = SCHEMA_VERSION
@@ -657,12 +666,17 @@ def migrate_schema_v7(config_dir: Path) -> dict[str, object]:
 
 def migrate_schema_v5(config_dir: Path) -> dict[str, object]:
     """Compatibility alias that migrates an old workbook to the current schema."""
-    return migrate_schema_v7(config_dir)
+    return migrate_schema_v8(config_dir)
 
 
 def migrate_schema_v6(config_dir: Path) -> dict[str, object]:
     """Compatibility alias that migrates an old workbook to the current schema."""
-    return migrate_schema_v7(config_dir)
+    return migrate_schema_v8(config_dir)
+
+
+def migrate_schema_v7(config_dir: Path) -> dict[str, object]:
+    """Compatibility alias that migrates an old workbook to the current schema."""
+    return migrate_schema_v8(config_dir)
 
 
 @contextmanager
@@ -821,7 +835,7 @@ class GoogleSheetsStore:
                 raise RecordValidationError(f"schema drift in {tab_name} grid properties")
             actual = self._read_values(f"'{tab_name}'!A1:{column_letter(len(headers))}1")
             actual_headers = actual[0] if actual else []
-            labels = HEADER_LABELS if schema_version == SCHEMA_VERSION else LEGACY_HEADER_LABELS
+            labels = HEADER_LABELS if schema_version in {SCHEMA_VERSION, "7"} else LEGACY_HEADER_LABELS
             expected_headers = [labels[header] for header in headers]
             if actual_headers != expected_headers:
                 raise RecordValidationError(f"schema drift in {tab_name} headers")
@@ -1156,6 +1170,7 @@ def parser() -> argparse.ArgumentParser:
     commands.add_parser("migrate-schema-v5")
     commands.add_parser("migrate-schema-v6")
     commands.add_parser("migrate-schema-v7")
+    commands.add_parser("migrate-schema-v8")
 
     for name in (
         "upsert-platform", "upsert-campaign", "upsert-placement", "append-event",
@@ -1208,9 +1223,9 @@ def main(argv: list[str] | None = None) -> int:
                     write_private_json(config_dir / "v1-sheets.json", config)
                     store.verify_schema()
                 output = config
-        elif args.command in {"migrate-schema-v5", "migrate-schema-v6", "migrate-schema-v7"}:
+        elif args.command in {"migrate-schema-v5", "migrate-schema-v6", "migrate-schema-v7", "migrate-schema-v8"}:
             with writer_lock(config_dir):
-                output = migrate_schema_v7(config_dir)
+                output = migrate_schema_v8(config_dir)
         elif args.command == "doctor":
             store = load_store(config_dir)
             metadata = store.verify_schema()

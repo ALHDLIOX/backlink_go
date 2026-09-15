@@ -7,8 +7,8 @@ from collections import Counter
 from datetime import datetime
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-SCHEMA_VERSION = "7"
-PREVIOUS_SCHEMA_VERSION = "6"
+SCHEMA_VERSION = "8"
+PREVIOUS_SCHEMA_VERSION = "7"
 LEGACY_SCHEMA_VERSION = "4"
 POLICY_VERSION = "backlink-operations-v1-policy-3"
 
@@ -34,15 +34,22 @@ PLATFORM_HEADERS = ["website_name", "platform_domain", "canonical_submission_url
 CAMPAIGN_HEADERS = ["product_canonical_id", "canonical_url", "campaign_id", "source_urls",
                     "source_list_reference", "batch_authorization_reference", "execution_shard_size",
                     "policy_version", "workflow_version", "row_version"]
-PLACEMENT_HEADERS = ["platform_domain", "website", "status", "public_url", "backlink_url", "anchor_text",
+PLACEMENT_HEADERS = ["product_canonical_id", "platform_domain", "website", "status", "public_url", "backlink_url", "anchor_text",
                      "exact_result", "follow_up", "verification", "action_at", "last_checked",
-                     "placement_id", "queue_id", "product_canonical_id", "campaign_id", "platform_id",
+                     "placement_id", "queue_id", "campaign_id", "platform_id",
                      "route", "account_alias", "idempotency_key", "authorization_reference",
                      "evidence_reference", "execution_method", "execution_notes", "row_version"]
 EVENT_HEADERS = ["event_id", "campaign_id", "queue_id", "idempotency_key", "timestamp", "action",
                  "result", "evidence_reference", "actor_alias"]
 TABLE_HEADERS = {"Platforms": PLATFORM_HEADERS, "Campaigns": CAMPAIGN_HEADERS,
                  "Placements": PLACEMENT_HEADERS, "Events": EVENT_HEADERS}
+
+SCHEMA_V7_PLACEMENT_HEADERS = ["platform_domain", "website", "status", "public_url", "backlink_url", "anchor_text",
+    "exact_result", "follow_up", "verification", "action_at", "last_checked", "placement_id", "queue_id",
+    "product_canonical_id", "campaign_id", "platform_id", "route", "account_alias", "idempotency_key",
+    "authorization_reference", "evidence_reference", "execution_method", "execution_notes", "row_version"]
+SCHEMA_V7_TABLE_HEADERS = {"Platforms": PLATFORM_HEADERS, "Campaigns": CAMPAIGN_HEADERS,
+    "Placements": SCHEMA_V7_PLACEMENT_HEADERS, "Events": EVENT_HEADERS}
 
 # Read-only legacy layouts retained solely for one-time schema migration.
 SCHEMA_V6_PLATFORM_HEADERS = ["website_name", "platform_domain", "platform_type", "canonical_submission_url",

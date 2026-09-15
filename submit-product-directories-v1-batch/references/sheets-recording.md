@@ -4,7 +4,7 @@ Use only the bundled CLI. Never use a Sheets connector or hand-edit rows as an e
 
 ```bash
 uv run python scripts/sheets_record.py doctor
-uv run python scripts/sheets_record.py migrate-schema-v7
+uv run python scripts/sheets_record.py migrate-schema-v8
 uv run python scripts/sheets_record.py format-workbook
 uv run python scripts/sheets_record.py upsert-platform --input platform.json
 uv run python scripts/sheets_record.py upsert-campaign --input campaign.json
@@ -15,7 +15,7 @@ uv run python scripts/sheets_record.py audit --campaign-id CAMPAIGN_ID --json
 uv run python scripts/sheets_record.py export-md --campaign-id CAMPAIGN_ID --output record.md
 ```
 
-All upsert and event commands accept `--dry-run`; dry run validates without Google access. `doctor` checks OAuth, workbook identity, schema 7, and exact headers. Migration accepts schema 4/5/6, combines old result tabs into `Placements`, rewrites event keys, deletes retired tabs, and verifies the new workbook.
+All upsert and event commands accept `--dry-run`; dry run validates without Google access. `doctor` checks OAuth, workbook identity, schema 8, and exact headers. Migration accepts schema 4 through 7, combines legacy result tabs when necessary, moves the product ID to the first Placement column, and verifies the workbook.
 
 Minimal Placement JSON:
 
