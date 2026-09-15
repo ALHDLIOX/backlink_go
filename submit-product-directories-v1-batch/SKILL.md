@@ -25,6 +25,8 @@ Google Sheets is the only writable V1 record store. Use the bundled CLI for auth
 
 Workbook row-one labels are readable Chinese business names. JSON inputs and internal validation continue to use the documented snake_case field keys. Run `uv run python scripts/sheets_record.py format-workbook` to restore the standard labels, gridlines, frozen panes, widths, and header styling after manual formatting changes.
 
+The current workbook schema is version 2. If `doctor` reports a configured schema-v1 workbook, run `uv run python scripts/sheets_record.py migrate-schema-v2` once; the bundled migration preserves existing rows and compacts the campaign and execution fields.
+
 Never invent product, company, founder, pricing, address, launch, ownership, contact, or legal facts. Keep optional unknowns blank and block required unknowns.
 
 ## Apply the batch legitimacy gate
@@ -38,7 +40,7 @@ Use only the exact brand, product name, or naked canonical URL as public link te
 1. Normalize hostnames and submission routes. Strip tracking parameters from the record while preserving required route parameters in controlled evidence.
 2. Derive an idempotency key from platform domain, product canonical ID, account alias, and route.
 3. Deduplicate before opening the browser. Never execute an idempotency key that is already submitted, awaiting approval, published, or outcome unknown.
-4. Assign stable queue IDs and execution shards. Treat shard size and maximum active tabs as operational settings, not SEO safety thresholds.
+4. Assign stable queue IDs and execution shards. Treat shard size and current browser capacity as operational settings, not SEO safety thresholds.
 5. Classify every site into `direct form`, `account required`, `manual verification`, `email verification`, `paid/reciprocal`, `unavailable`, `ineligible`, or `unknown`.
 6. Use batch-scoped authorization only when it names the allowed actions, source-list scope, approver alias, approval time, and expiry. Payments, reciprocal-site changes, DNS changes, and publication outside a directory require separate authorization.
 

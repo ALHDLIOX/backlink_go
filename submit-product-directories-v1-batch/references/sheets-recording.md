@@ -14,6 +14,14 @@ uv run python scripts/sheets_record.py init --title "Backlink Operations"
 uv run python scripts/sheets_record.py doctor
 ```
 
+Existing schema-v1 workbooks must be upgraded once before `doctor` or any write:
+
+```bash
+uv run python scripts/sheets_record.py migrate-schema-v2
+```
+
+The migration preserves existing rows, folds repeated campaign policies into `spd-v1-policy-2`, combines the five browser/backend columns into execution method and notes, and updates the workbook atomically.
+
 To restore the workbook's readable Chinese headers and standard presentation:
 
 ```bash
@@ -77,6 +85,8 @@ Use exact snake_case keys. Generated `created_at`, `updated_at`, and `row_versio
 }
 ```
 
+`source` and `notes` may be omitted when no useful value is available.
+
 `account_required`: `yes`, `no`, or `unknown`. `cost_model`: `free`, `paid`, `freemium`, or `unknown`. `reciprocal_requirement`: `none`, `optional`, `required`, or `unknown`. `availability`: `available`, `unavailable`, or `unknown`.
 
 ### Campaign
@@ -91,16 +101,7 @@ Use exact snake_case keys. Generated `created_at`, `updated_at`, and `row_versio
   "source_urls": "https://directory.example/submit",
   "batch_authorization_reference": "auth-batch-example-001",
   "execution_shard_size": "20",
-  "maximum_active_tabs": "5",
-  "host_platform": "macos",
-  "ui_environment": "desktop",
-  "available_control_capabilities": "connected browser; user handoff",
-  "browser_routing_policy": "explicit choice; supported runtime; user handoff",
-  "credential_policy": "aliases only; no secrets in records",
-  "evidence_policy": "controlled evidence IDs only",
-  "duplicate_policy": "never execute completed or pending idempotency keys",
-  "ambiguous_outcome_policy": "check backend, mailbox, and public page before retry",
-  "ranking_manipulation_prohibited": "yes"
+  "policy_version": "spd-v1-policy-2"
 }
 ```
 
@@ -120,11 +121,8 @@ Put one public source URL per line in `source_urls`. Do not include authenticati
   "account_alias": "account-example",
   "idempotency_key": "directory.example|product-example|account-example|directory listing",
   "execution_shard": "shard-001",
-  "platform_capability_result": "supported",
-  "requested_browser_constraint": "not specified",
-  "selected_browser_surface": "connected browser",
-  "execution_backend_session_alias": "browser-runtime/session-main",
-  "backend_selection_reason": "supported structured browser control",
+  "execution_method": "connected browser",
+  "execution_notes": "supported structured browser control",
   "legitimacy_gate": "passed",
   "authorization_reference": "auth-batch-example-001",
   "status": "not attempted",

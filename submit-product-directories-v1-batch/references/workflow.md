@@ -11,8 +11,7 @@ Record:
 - campaign ID and `SPD version: V1 Batch`;
 - product canonical ID and canonical URL;
 - source-list reference and authorization reference;
-- execution-shard size and maximum active tabs;
-- normalized host platform, UI environment, available control capabilities, browser-routing policy, and selected backend/session aliases;
+- execution-shard size and shared policy version;
 - permitted actions, scope, approver alias, approval time, and expiry;
 - prohibited actions, including payment, reciprocal-site modification, and DNS changes unless separately approved.
 
@@ -52,13 +51,13 @@ Classify passing routes by operational lane:
 
 Split the passing queue by route and browser capacity. Configure shard size explicitly; a practical default may be chosen for local resources, but it is not a search-engine safety threshold.
 
-Before opening the first shard, apply [browser-control-routing.md](browser-control-routing.md). Detect `windows`, `macos`, `linux`, or `other`; detect desktop, remote, or headless UI availability; and inventory compatible control capabilities. Honor an explicit browser choice, use a supported browser runtime when available, use only a desktop UI adapter whose declared target matches the host platform, and hand off rather than silently switching browsers. Store environment-specific identifiers outside the shareable record.
+Before opening the first shard, apply [browser-control-routing.md](browser-control-routing.md). Detect `windows`, `macos`, `linux`, or `other`; detect desktop, remote, or headless UI availability; and inventory compatible control capabilities. Honor an explicit browser choice, use a supported browser runtime when available, use only a desktop UI adapter whose declared target matches the host platform, and hand off rather than silently switching browsers. Record only a concise execution method and optional non-secret notes; keep environment-specific identifiers outside the shareable record.
 
 Within each shard:
 
 1. order account and email-verification work first;
 2. order short-lived verification tokens immediately before their forms;
-3. cap active tabs at the recorded limit;
+3. cap active tabs according to current runtime capacity;
 4. keep one queue cursor and the append-only `Events` worksheet;
 5. isolate browser profiles when account identity or session ownership differs.
 6. keep each site bound to the selected backend and session alias until it reaches a recorded handoff or terminal state.

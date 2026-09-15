@@ -68,16 +68,7 @@ def campaign(campaign_id="campaign-001", product_id="product-001", **changes):
         "source_urls": "https://directory.test/submit",
         "batch_authorization_reference": "auth-batch-001",
         "execution_shard_size": "20",
-        "maximum_active_tabs": "5",
-        "host_platform": "macos",
-        "ui_environment": "desktop",
-        "available_control_capabilities": "connected browser; user handoff",
-        "browser_routing_policy": "explicit choice; supported runtime; handoff",
-        "credential_policy": "aliases only",
-        "evidence_policy": "controlled evidence IDs only",
-        "duplicate_policy": "never execute completed or pending keys",
-        "ambiguous_outcome_policy": "check backend, mailbox, and public page",
-        "ranking_manipulation_prohibited": "yes",
+        "policy_version": MODEL.POLICY_VERSION,
     }
     value.update(changes)
     return value
@@ -95,11 +86,8 @@ def submission(campaign_id="campaign-001", product_id="product-001", **changes):
         "account_alias": "account-001",
         "idempotency_key": f"directory.test|{product_id}|account-001|directory listing",
         "execution_shard": "shard-001",
-        "platform_capability_result": "supported",
-        "requested_browser_constraint": "not specified",
-        "selected_browser_surface": "connected browser",
-        "execution_backend_session_alias": "browser-runtime/session-main",
-        "backend_selection_reason": "supported structured browser control",
+        "execution_method": "connected browser",
+        "execution_notes": "supported structured browser control",
         "legitimacy_gate": "passed",
         "authorization_reference": "auth-batch-001",
         "status": "submitted",
@@ -210,7 +198,10 @@ class WorkbookSchemaTests(unittest.TestCase):
         requests = SHEETS.initialization_batch_requests(properties)
         self.assertEqual(sum("setBasicFilter" in item for item in requests), 4)
         self.assertEqual(sum("setDataValidation" in item for item in requests), len(MODEL.DROPDOWNS))
-        self.assertEqual(requests[0]["createDeveloperMetadata"]["developerMetadata"]["metadataValue"], "1")
+        self.assertEqual(
+            requests[0]["createDeveloperMetadata"]["developerMetadata"]["metadataValue"],
+            MODEL.SCHEMA_VERSION,
+        )
 
     def test_readable_format_restores_gridlines_and_uses_readable_headers(self):
         properties = {name: {"sheetId": index} for index, name in enumerate(MODEL.TABLE_HEADERS, start=1)}
@@ -394,6 +385,50 @@ class WorkbookSchemaTests(unittest.TestCase):
 
 
 class ValidationTests(unittest.TestCase):
+    def test_platform_source_and_notes_are_optional(self):
+        value = platform()
+        value.pop("source")
+        value.pop("notes")
+        MODEL.validate_platform(value)
+
+    def test_legacy_fields_are_folded_without_losing_operational_context(self):
+        legacy_campaign = {key: "legacy" for key in MODEL.LEGACY_CAMPAIGN_HEADERS}
+        migrated_campaign = MODEL.migrate_legacy_record("Campaigns", legacy_campaign)
+        self.assertEqual(migrated_campaign["policy_version"], MODEL.POLICY_VERSION)
+        self.assertNotIn("credential_policy", migrated_campaign)
+
+        legacy_submission = {key: "" for key in MODEL.LEGACY_SUBMISSION_HEADERS}
+        legacy_submission.update(
+            {
+                "selected_browser_surface": "connected browser",
+                "platform_capability_result": "supported",
+                "requested_browser_constraint": "Chrome",
+                "execution_backend_session_alias": "session-main",
+                "backend_selection_reason": "structured control",
+            }
+        )
+        migrated_submission = MODEL.migrate_legacy_record("Submissions", legacy_submission)
+        self.assertEqual(migrated_submission["execution_method"], "connected browser")
+        self.assertIn("capability: supported", migrated_submission["execution_notes"])
+        self.assertIn("browser request: Chrome", migrated_submission["execution_notes"])
+        self.assertNotIn("selected_browser_surface", migrated_submission)
+
+    def test_schema_v2_migration_request_resizes_compact_tables_and_updates_metadata(self):
+        properties = {name: {"sheetId": index} for index, name in enumerate(MODEL.TABLE_HEADERS, start=1)}
+        records = {name: [] for name in MODEL.TABLE_HEADERS}
+        requests = SHEETS.schema_v2_migration_requests(properties, records)
+        sizes = {
+            item["updateSheetProperties"]["properties"]["sheetId"]:
+            item["updateSheetProperties"]["properties"]["gridProperties"]["columnCount"]
+            for item in requests
+            if "updateSheetProperties" in item
+            and "columnCount" in item["updateSheetProperties"]["properties"].get("gridProperties", {})
+        }
+        self.assertEqual(sizes[2], len(MODEL.CAMPAIGN_HEADERS))
+        self.assertEqual(sizes[3], len(MODEL.SUBMISSION_HEADERS))
+        metadata = [item for item in requests if "updateDeveloperMetadata" in item]
+        self.assertEqual(metadata[0]["updateDeveloperMetadata"]["developerMetadata"]["metadataValue"], "2")
+
     def test_tracking_parameters_are_removed_but_route_query_remains(self):
         value = MODEL.normalize_url("HTTPS://Directory.Test/submit/?category=ai&utm_source=x#top")
         self.assertEqual(value, "https://directory.test/submit?category=ai")

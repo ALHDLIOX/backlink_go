@@ -30,16 +30,7 @@ REQUIRED_CONTROLS = {
     "Source-list reference",
     "Batch authorization reference",
     "Execution-shard size",
-    "Maximum active tabs",
-    "Host platform",
-    "UI environment",
-    "Available control capabilities",
-    "Browser-routing policy",
-    "Credential policy",
-    "Evidence policy",
-    "Duplicate policy",
-    "Ambiguous-outcome policy",
-    "Ranking manipulation prohibited",
+    "Policy version",
 }
 
 REQUIRED_SITE_FIELDS = {
@@ -50,11 +41,8 @@ REQUIRED_SITE_FIELDS = {
     "Account alias",
     "Idempotency key",
     "Execution shard",
-    "Platform capability result",
-    "Requested browser constraint",
-    "Selected browser surface",
-    "Execution backend/session alias",
-    "Backend selection reason",
+    "Execution method",
+    "Execution notes",
     "Legitimacy gate",
     "Authorization reference",
     "Status",
@@ -106,18 +94,12 @@ def audit(text: str) -> dict[str, object]:
         errors.append("missing campaign controls: " + ", ".join(missing_controls))
     if controls.get("SPD version") != "V1 Batch":
         errors.append("SPD version must be V1 Batch")
-    if controls.get("Ranking manipulation prohibited", "").lower() != "yes":
-        errors.append("Ranking manipulation prohibited must be yes")
-    for numeric in ("Execution-shard size", "Maximum active tabs"):
+    if controls.get("Policy version") != "spd-v1-policy-2":
+        errors.append("Policy version must be spd-v1-policy-2")
+    for numeric in ("Execution-shard size",):
         value = controls.get(numeric, "")
         if not value.isdigit() or int(value) < 1:
             errors.append(f"{numeric} must be a positive integer")
-    if controls.get("Host platform", "").lower() not in {"windows", "macos", "linux", "other"}:
-        errors.append("Host platform must be windows, macos, linux, or other")
-    if controls.get("UI environment", "").lower() not in {"desktop", "remote desktop", "headless", "unknown"}:
-        errors.append("UI environment must be desktop, remote desktop, headless, or unknown")
-    if controls.get("Available control capabilities", "").lower() in {"", "none", "not applicable"}:
-        errors.append("Available control capabilities must record at least one capability or user handoff")
 
     if not re.search(r"^## Source list\s*$\n(?:\s*\n)*1\.\s+\S+", text, re.MULTILINE):
         errors.append("Source list must contain at least one URL")
@@ -173,7 +155,7 @@ def audit(text: str) -> dict[str, object]:
         state_record = {
             "status": status,
             "verification_preflight": verification,
-            "platform_capability_result": fields.get("Platform capability result", ""),
+            "execution_method": fields.get("Execution method", ""),
             "legitimacy_gate": fields.get("Legitimacy gate", ""),
             "authorization_reference": fields.get("Authorization reference", ""),
             "fields_entered": fields.get("Fields entered", ""),

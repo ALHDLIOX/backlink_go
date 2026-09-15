@@ -1,10 +1,10 @@
 # SPD V1 Batch status model
 
-Google Sheets is the authoritative V1 record store. The workbook schema version is `1` and contains exactly four worksheets. Use `scripts/sheets_record.py`; do not locate or write cells manually.
+Google Sheets is the authoritative V1 record store. The workbook schema version is `2` and contains exactly four worksheets. Use `scripts/sheets_record.py`; do not locate or write cells manually.
 
 ## Platforms
 
-One reusable platform row may serve multiple products. Required fields are platform ID, normalized domain, website name, canonical submission URL, route, account requirement, verification pattern, cost model, reciprocal requirement, availability, last verification time, source, and notes. The script owns row version and update time.
+One reusable platform row may serve multiple products. Required fields are platform ID, normalized domain, website name, canonical submission URL, route, account requirement, verification pattern, cost model, reciprocal requirement, availability, and last verification time. Source and notes are optional. The script owns row version and update time.
 
 Platform knowledge does not prove a product was submitted. Recheck changing availability, pricing, reciprocal requirements, terms, verification, and routes before reuse.
 
@@ -16,11 +16,10 @@ Required campaign controls are:
 - Campaign ID, product canonical ID, and canonical URL
 - Source-list reference and one or more newline-separated public source URLs
 - Batch authorization reference
-- Positive execution-shard size and maximum active tabs
-- Host platform and UI environment
-- Available control capabilities and browser-routing policy
-- Credential, evidence, duplicate, and ambiguous-outcome policies
-- `ranking_manipulation_prohibited: yes`
+- Positive execution-shard size
+- Policy version: `spd-v1-policy-2`
+
+The policy version represents the Skill's shared credential, evidence, deduplication, ambiguous-outcome, browser-routing, and anti-manipulation rules without copying those rules into every campaign row.
 
 The script owns created time, updated time, and row version.
 
@@ -30,7 +29,7 @@ Each submission preserves:
 
 - campaign ID, stable queue ID, platform ID, and product canonical ID;
 - website, platform domain, route, account alias, and idempotency key;
-- execution shard and browser/backend routing result;
+- execution shard, concise execution method, and optional non-secret execution notes;
 - legitimacy gate and authorization reference;
 - status and verification preflight;
 - fields entered/omitted and agreements/subscriptions;

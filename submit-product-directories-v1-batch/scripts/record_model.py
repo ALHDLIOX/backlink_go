@@ -9,7 +9,9 @@ from datetime import datetime
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
+LEGACY_SCHEMA_VERSION = "1"
+POLICY_VERSION = "spd-v1-policy-2"
 
 ALLOWED_STATUSES = {
     "not attempted",
@@ -42,7 +44,6 @@ ALLOWED_VERIFICATION = {
 }
 
 ALLOWED_LEGITIMACY = {"passed", "failed", "not checked"}
-ALLOWED_CAPABILITY_RESULTS = {"supported", "supported with handoff", "unavailable"}
 ALLOWED_COST_MODELS = {"free", "paid", "freemium", "unknown"}
 TERMINAL_OR_PENDING = {
     "submitted",
@@ -77,6 +78,29 @@ PLATFORM_HEADERS = [
 CAMPAIGN_HEADERS = [
     "campaign_id", "spd_version", "product_canonical_id", "canonical_url",
     "source_list_reference", "source_urls", "batch_authorization_reference",
+    "execution_shard_size", "policy_version", "created_at", "updated_at", "row_version",
+]
+
+SUBMISSION_HEADERS = [
+    "campaign_id", "queue_id", "platform_id", "product_canonical_id", "website",
+    "platform_domain", "route", "account_alias", "idempotency_key",
+    "execution_shard", "execution_method", "execution_notes", "legitimacy_gate",
+    "authorization_reference",
+    "status", "verification_preflight", "fields_entered", "fields_omitted",
+    "agreements_subscriptions", "submit_timestamp", "exact_result",
+    "evidence_reference", "public_listing_url", "backend_checked",
+    "mailbox_checked", "public_page_checked", "last_checked", "follow_up",
+    "created_at", "updated_at", "row_version",
+]
+
+EVENT_HEADERS = [
+    "event_id", "campaign_id", "queue_id", "idempotency_key", "timestamp",
+    "action", "result", "evidence_reference", "actor_alias",
+]
+
+LEGACY_CAMPAIGN_HEADERS = [
+    "campaign_id", "spd_version", "product_canonical_id", "canonical_url",
+    "source_list_reference", "source_urls", "batch_authorization_reference",
     "execution_shard_size", "maximum_active_tabs", "host_platform",
     "ui_environment", "available_control_capabilities", "browser_routing_policy",
     "credential_policy", "evidence_policy", "duplicate_policy",
@@ -84,7 +108,7 @@ CAMPAIGN_HEADERS = [
     "updated_at", "row_version",
 ]
 
-SUBMISSION_HEADERS = [
+LEGACY_SUBMISSION_HEADERS = [
     "campaign_id", "queue_id", "platform_id", "product_canonical_id", "website",
     "platform_domain", "route", "account_alias", "idempotency_key",
     "execution_shard", "platform_capability_result", "requested_browser_constraint",
@@ -97,10 +121,12 @@ SUBMISSION_HEADERS = [
     "created_at", "updated_at", "row_version",
 ]
 
-EVENT_HEADERS = [
-    "event_id", "campaign_id", "queue_id", "idempotency_key", "timestamp",
-    "action", "result", "evidence_reference", "actor_alias",
-]
+LEGACY_TABLE_HEADERS = {
+    "Platforms": PLATFORM_HEADERS,
+    "Campaigns": LEGACY_CAMPAIGN_HEADERS,
+    "Submissions": LEGACY_SUBMISSION_HEADERS,
+    "Events": EVENT_HEADERS,
+}
 
 TABLE_HEADERS = {
     "Platforms": PLATFORM_HEADERS,
@@ -120,12 +146,14 @@ HEADER_LABELS = {
     "campaign_id": "活动编号", "spd_version": "SPD 版本", "product_canonical_id": "产品编号",
     "canonical_url": "产品官网", "source_list_reference": "来源清单编号", "source_urls": "来源网址",
     "batch_authorization_reference": "批次授权编号", "execution_shard_size": "每批数量",
+    "policy_version": "规则版本",
     "maximum_active_tabs": "最大标签页数", "host_platform": "运行系统", "ui_environment": "界面环境",
     "available_control_capabilities": "可用控制能力", "browser_routing_policy": "浏览器选择规则",
     "credential_policy": "凭据规则", "evidence_policy": "证据规则", "duplicate_policy": "去重规则",
     "ambiguous_outcome_policy": "结果不明处理规则", "ranking_manipulation_prohibited": "禁止操纵排名",
     "created_at": "创建时间", "queue_id": "队列编号", "website": "提交页面",
     "account_alias": "账号别名", "idempotency_key": "防重复键", "execution_shard": "执行批次",
+    "execution_method": "执行方式", "execution_notes": "执行备注",
     "platform_capability_result": "平台操作能力", "requested_browser_constraint": "指定浏览器要求",
     "selected_browser_surface": "实际浏览器界面", "execution_backend_session_alias": "执行会话别名",
     "backend_selection_reason": "选择执行方式的原因", "legitimacy_gate": "合规性检查",
@@ -143,13 +171,40 @@ def display_headers(tab_name: str) -> list[str]:
     """Return readable row-1 labels while preserving field order."""
     return [HEADER_LABELS[header] for header in TABLE_HEADERS[tab_name]]
 
+
+def legacy_display_headers(tab_name: str) -> list[str]:
+    """Return the schema-v1 labels used only by the v1-to-v2 migration."""
+    return [HEADER_LABELS[header] for header in LEGACY_TABLE_HEADERS[tab_name]]
+
+
+def migrate_legacy_record(tab_name: str, record: dict[str, object]) -> dict[str, str]:
+    """Losslessly fold schema-v1 operational fields into the smaller v2 shape."""
+    if tab_name == "Campaigns":
+        migrated = {key: record.get(key, "") for key in CAMPAIGN_HEADERS}
+        migrated["policy_version"] = POLICY_VERSION
+    elif tab_name == "Submissions":
+        migrated = {key: record.get(key, "") for key in SUBMISSION_HEADERS}
+        capability = str(record.get("platform_capability_result", "")).strip()
+        surface = str(record.get("selected_browser_surface", "")).strip()
+        migrated["execution_method"] = surface or capability or "not recorded"
+        details = [
+            ("capability", capability),
+            ("browser request", str(record.get("requested_browser_constraint", "")).strip()),
+            ("session alias", str(record.get("execution_backend_session_alias", "")).strip()),
+            ("reason", str(record.get("backend_selection_reason", "")).strip()),
+        ]
+        migrated["execution_notes"] = "; ".join(
+            f"{label}: {value}" for label, value in details
+            if value and value.lower() not in {"none", "not applicable", "not specified"}
+        )
+    else:
+        migrated = {key: record.get(key, "") for key in TABLE_HEADERS[tab_name]}
+    return {key: str(value) for key, value in migrated.items()}
+
 DROPDOWNS = {
     ("Submissions", "status"): sorted(ALLOWED_STATUSES),
     ("Submissions", "verification_preflight"): sorted(ALLOWED_VERIFICATION),
     ("Submissions", "legitimacy_gate"): sorted(ALLOWED_LEGITIMACY),
-    ("Submissions", "platform_capability_result"): sorted(ALLOWED_CAPABILITY_RESULTS),
-    ("Campaigns", "host_platform"): ["windows", "macos", "linux", "other"],
-    ("Campaigns", "ui_environment"): ["desktop", "remote desktop", "headless", "unknown"],
     ("Platforms", "account_required"): ["yes", "no", "unknown"],
     ("Platforms", "cost_model"): sorted(ALLOWED_COST_MODELS),
     ("Platforms", "reciprocal_requirement"): ["none", "optional", "required", "unknown"],
@@ -262,7 +317,10 @@ def computed_idempotency_key(record: dict[str, object]) -> str:
 
 
 def validate_platform(record: dict[str, object]) -> None:
-    required = [field for field in PLATFORM_HEADERS if field not in {"row_version", "updated_at"}]
+    required = [
+        field for field in PLATFORM_HEADERS
+        if field not in {"source", "notes", "row_version", "updated_at"}
+    ]
     _require(record, required, "platform")
     _check_sensitive(record)
     if record["account_required"] not in {"yes", "no", "unknown"}:
@@ -286,20 +344,14 @@ def validate_campaign(record: dict[str, object]) -> None:
     _check_sensitive(record)
     if record["spd_version"] != "V1 Batch":
         raise RecordValidationError("spd_version must be V1 Batch")
-    if str(record["ranking_manipulation_prohibited"]).lower() != "yes":
-        raise RecordValidationError("ranking_manipulation_prohibited must be yes")
-    for field in ("execution_shard_size", "maximum_active_tabs"):
+    if record["policy_version"] != POLICY_VERSION:
+        raise RecordValidationError(f"policy_version must be {POLICY_VERSION}")
+    for field in ("execution_shard_size",):
         try:
             if int(record[field]) < 1:
                 raise ValueError
         except (TypeError, ValueError) as exc:
             raise RecordValidationError(f"{field} must be a positive integer") from exc
-    if record["host_platform"] not in {"windows", "macos", "linux", "other"}:
-        raise RecordValidationError("invalid host_platform")
-    if record["ui_environment"] not in {"desktop", "remote desktop", "headless", "unknown"}:
-        raise RecordValidationError("invalid ui_environment")
-    if _empty(record["available_control_capabilities"]):
-        raise RecordValidationError("available_control_capabilities must not be empty")
     if not urlsplit(str(record["canonical_url"])).hostname:
         raise RecordValidationError("canonical_url must be a public URL")
     source_urls = [item.strip() for item in str(record["source_urls"]).splitlines() if item.strip()]
@@ -317,10 +369,10 @@ def validate_submission_state(record: dict[str, object]) -> None:
         raise RecordValidationError(f"invalid verification_preflight: {verification}")
     if record.get("legitimacy_gate") not in ALLOWED_LEGITIMACY:
         raise RecordValidationError("invalid legitimacy_gate")
-    if record.get("platform_capability_result") not in ALLOWED_CAPABILITY_RESULTS:
-        raise RecordValidationError("invalid platform_capability_result")
-    if status in EXECUTED and record.get("platform_capability_result") == "unavailable":
-        raise RecordValidationError("executed without a compatible platform capability")
+    if _empty(record.get("execution_method")):
+        raise RecordValidationError("execution_method must not be empty")
+    if status in EXECUTED and str(record.get("execution_method", "")).strip().lower() == "unavailable":
+        raise RecordValidationError("executed without a compatible execution method")
     if status in EXECUTED and record.get("legitimacy_gate") != "passed":
         raise RecordValidationError("executed without a passed legitimacy gate")
     if status in EXECUTED and _empty(record.get("authorization_reference")):
@@ -568,14 +620,7 @@ def export_campaign_markdown(
         ("Source-list reference", "source_list_reference"),
         ("Batch authorization reference", "batch_authorization_reference"),
         ("Execution-shard size", "execution_shard_size"),
-        ("Maximum active tabs", "maximum_active_tabs"), ("Host platform", "host_platform"),
-        ("UI environment", "ui_environment"),
-        ("Available control capabilities", "available_control_capabilities"),
-        ("Browser-routing policy", "browser_routing_policy"),
-        ("Credential policy", "credential_policy"), ("Evidence policy", "evidence_policy"),
-        ("Duplicate policy", "duplicate_policy"),
-        ("Ambiguous-outcome policy", "ambiguous_outcome_policy"),
-        ("Ranking manipulation prohibited", "ranking_manipulation_prohibited"),
+        ("Policy version", "policy_version"),
     ]
     lines = [
         f"# {campaign['campaign_id']} — SPD V1 Batch Record", "",
@@ -590,11 +635,8 @@ def export_campaign_markdown(
         ("Queue ID", "queue_id"), ("Website", "website"), ("Platform domain", "platform_domain"),
         ("Route", "route"), ("Account alias", "account_alias"),
         ("Idempotency key", "idempotency_key"), ("Execution shard", "execution_shard"),
-        ("Platform capability result", "platform_capability_result"),
-        ("Requested browser constraint", "requested_browser_constraint"),
-        ("Selected browser surface", "selected_browser_surface"),
-        ("Execution backend/session alias", "execution_backend_session_alias"),
-        ("Backend selection reason", "backend_selection_reason"),
+        ("Execution method", "execution_method"),
+        ("Execution notes", "execution_notes"),
         ("Legitimacy gate", "legitimacy_gate"),
         ("Authorization reference", "authorization_reference"), ("Status", "status"),
         ("Verification preflight", "verification_preflight"),

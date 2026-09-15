@@ -20,11 +20,15 @@ from record_model import (
     DROPDOWNS,
     EVENT_HEADERS,
     EXECUTED,
+    LEGACY_SCHEMA_VERSION,
+    LEGACY_TABLE_HEADERS,
     PLATFORM_HEADERS,
     SCHEMA_VERSION,
     SUBMISSION_HEADERS,
     TABLE_HEADERS,
     display_headers,
+    legacy_display_headers,
+    migrate_legacy_record,
     RecordValidationError,
     audit_records,
     export_campaign_markdown,
@@ -287,6 +291,182 @@ def format_workbook(store: "GoogleSheetsStore") -> dict[str, object]:
     return {"formatted": True, "worksheets": list(TABLE_HEADERS), "schema_valid": True}
 
 
+def _cell_row(values: list[object]) -> dict[str, object]:
+    return {
+        "values": [
+            {"userEnteredValue": {"stringValue": str(value)}}
+            for value in values
+        ]
+    }
+
+
+def schema_v2_migration_requests(
+    properties: dict[str, dict[str, Any]],
+    records: dict[str, list[dict[str, str]]],
+) -> list[dict[str, Any]]:
+    """Build one atomic Sheets batchUpdate from schema v1 to schema v2."""
+    requests: list[dict[str, Any]] = []
+    for tab_name, new_headers in TABLE_HEADERS.items():
+        sheet_id = properties[tab_name]["sheetId"]
+        legacy_count = len(LEGACY_TABLE_HEADERS[tab_name])
+        rows = [display_headers(tab_name)] + [
+            row_values(new_headers, item) for item in records[tab_name]
+        ]
+        requests.extend(
+            [
+                {"clearBasicFilter": {"sheetId": sheet_id}},
+                {
+                    "setDataValidation": {
+                        "range": {
+                            "sheetId": sheet_id,
+                            "startRowIndex": 1,
+                            "startColumnIndex": 0,
+                            "endColumnIndex": legacy_count,
+                        }
+                    }
+                },
+                {
+                    "updateSheetProperties": {
+                        "properties": {
+                            "sheetId": sheet_id,
+                            "gridProperties": {
+                                "columnCount": len(new_headers),
+                                "frozenRowCount": 1,
+                            },
+                        },
+                        "fields": "gridProperties.columnCount,gridProperties.frozenRowCount",
+                    }
+                },
+                {
+                    "updateCells": {
+                        "range": {
+                            "sheetId": sheet_id,
+                            "startRowIndex": 0,
+                            "endRowIndex": len(rows),
+                            "startColumnIndex": 0,
+                            "endColumnIndex": len(new_headers),
+                        },
+                        "rows": [_cell_row(row) for row in rows],
+                        "fields": "userEnteredValue",
+                    }
+                },
+                {
+                    "setBasicFilter": {
+                        "filter": {
+                            "range": {
+                                "sheetId": sheet_id,
+                                "startRowIndex": 0,
+                                "startColumnIndex": 0,
+                                "endColumnIndex": len(new_headers),
+                            }
+                        }
+                    }
+                },
+            ]
+        )
+    for (tab_name, header), allowed in DROPDOWNS.items():
+        sheet_id = properties[tab_name]["sheetId"]
+        column_index = TABLE_HEADERS[tab_name].index(header)
+        requests.append(
+            {
+                "setDataValidation": {
+                    "range": {
+                        "sheetId": sheet_id,
+                        "startRowIndex": 1,
+                        "startColumnIndex": column_index,
+                        "endColumnIndex": column_index + 1,
+                    },
+                    "rule": {
+                        "condition": {
+                            "type": "ONE_OF_LIST",
+                            "values": [{"userEnteredValue": value} for value in allowed],
+                        },
+                        "strict": True,
+                        "showCustomUi": True,
+                    },
+                }
+            }
+        )
+    requests.extend(readable_format_requests(properties))
+    requests.append(
+        {
+            "updateDeveloperMetadata": {
+                "dataFilters": [
+                    {
+                        "developerMetadataLookup": {
+                            "metadataKey": METADATA_KEY,
+                            "locationType": "SPREADSHEET",
+                        }
+                    }
+                ],
+                "developerMetadata": {"metadataValue": SCHEMA_VERSION},
+                "fields": "metadataValue",
+            }
+        }
+    )
+    return requests
+
+
+def migrate_schema_v2(config_dir: Path) -> dict[str, object]:
+    """Migrate the configured workbook from schema v1 to the compact v2 schema."""
+    config_path = config_dir / "v1-sheets.json"
+    require_private_file(config_path)
+    config = read_json_file(config_path)
+    if not config.get("spreadsheet_id"):
+        raise RecordValidationError("workbook config is invalid or unsupported")
+    store = GoogleSheetsStore(build_service(config_dir), str(config["spreadsheet_id"]))
+    if config.get("schema_version") == SCHEMA_VERSION:
+        store.verify_schema()
+        return {"migrated": False, "schema_version": SCHEMA_VERSION, "reason": "already current"}
+    if config.get("schema_version") != LEGACY_SCHEMA_VERSION:
+        raise RecordValidationError("workbook config is invalid or unsupported")
+
+    metadata = store.metadata()
+    remote_versions = [
+        item.get("metadataValue") for item in metadata.get("developerMetadata", [])
+        if item.get("metadataKey") == METADATA_KEY
+    ]
+    if remote_versions == [SCHEMA_VERSION]:
+        store.verify_schema()
+        config["schema_version"] = SCHEMA_VERSION
+        write_private_json(config_path, config)
+        return {"migrated": False, "schema_version": SCHEMA_VERSION, "reason": "reconciled config"}
+
+    store.verify_schema(LEGACY_SCHEMA_VERSION, LEGACY_TABLE_HEADERS)
+    migrated_records: dict[str, list[dict[str, str]]] = {}
+    for tab_name, legacy_headers in LEGACY_TABLE_HEADERS.items():
+        values = store._read_values(f"'{tab_name}'!A2:{column_letter(len(legacy_headers))}")
+        migrated_records[tab_name] = [
+            migrate_legacy_record(tab_name, item)
+            for item in rows_to_records(legacy_headers, values)
+        ]
+    audit = audit_records(
+        campaigns=migrated_records["Campaigns"],
+        submissions=migrated_records["Submissions"],
+        events=migrated_records["Events"],
+        platforms=migrated_records["Platforms"],
+    )
+    if not audit["valid"]:
+        raise RecordValidationError("migrated data failed validation: " + "; ".join(audit["errors"]))
+    properties = {
+        sheet["properties"]["title"]: sheet["properties"]
+        for sheet in metadata.get("sheets", [])
+    }
+    store.service.spreadsheets().batchUpdate(
+        spreadsheetId=store.spreadsheet_id,
+        body={"requests": schema_v2_migration_requests(properties, migrated_records)},
+    ).execute()
+    store.verify_schema()
+    config["schema_version"] = SCHEMA_VERSION
+    write_private_json(config_path, config)
+    return {
+        "migrated": True,
+        "from_schema_version": LEGACY_SCHEMA_VERSION,
+        "schema_version": SCHEMA_VERSION,
+        "rows": {name: len(items) for name, items in migrated_records.items()},
+    }
+
+
 @contextmanager
 def writer_lock(config_dir: Path):
     ensure_private_dir(config_dir)
@@ -419,19 +599,23 @@ class GoogleSheetsStore:
             .execute()
         )
 
-    def verify_schema(self) -> dict[str, Any]:
+    def verify_schema(
+        self,
+        schema_version: str = SCHEMA_VERSION,
+        table_headers: dict[str, list[str]] = TABLE_HEADERS,
+    ) -> dict[str, Any]:
         metadata = self.metadata()
         versions = [
             item.get("metadataValue")
             for item in metadata.get("developerMetadata", [])
             if item.get("metadataKey") == METADATA_KEY
         ]
-        if versions != [SCHEMA_VERSION]:
+        if versions != [schema_version]:
             raise RecordValidationError("workbook schema version is missing or unsupported")
         sheet_map = {item["properties"]["title"]: item["properties"] for item in metadata.get("sheets", [])}
-        if set(sheet_map) != set(TABLE_HEADERS):
+        if set(sheet_map) != set(table_headers):
             raise RecordValidationError("workbook worksheets do not match the schema")
-        for tab_name, headers in TABLE_HEADERS.items():
+        for tab_name, headers in table_headers.items():
             if tab_name not in sheet_map:
                 raise RecordValidationError(f"missing worksheet: {tab_name}")
             grid = sheet_map[tab_name].get("gridProperties", {})
@@ -439,7 +623,12 @@ class GoogleSheetsStore:
                 raise RecordValidationError(f"schema drift in {tab_name} grid properties")
             actual = self._read_values(f"'{tab_name}'!A1:{column_letter(len(headers))}1")
             actual_headers = actual[0] if actual else []
-            if actual_headers != display_headers(tab_name):
+            expected_headers = (
+                display_headers(tab_name)
+                if schema_version == SCHEMA_VERSION
+                else legacy_display_headers(tab_name)
+            )
+            if actual_headers != expected_headers:
                 raise RecordValidationError(f"schema drift in {tab_name} headers")
         return metadata
 
@@ -483,13 +672,13 @@ class GoogleSheetsStore:
         ).execute()
 
 
-def load_store(config_dir: Path) -> GoogleSheetsStore:
+def load_store(config_dir: Path, schema_version: str = SCHEMA_VERSION) -> GoogleSheetsStore:
     config_path = config_dir / "v1-sheets.json"
     if not config_path.is_file():
         raise RecordValidationError("workbook config not found; run init")
     require_private_file(config_path)
     config = read_json_file(config_path)
-    if config.get("schema_version") != SCHEMA_VERSION or not config.get("spreadsheet_id"):
+    if config.get("schema_version") != schema_version or not config.get("spreadsheet_id"):
         raise RecordValidationError("workbook config is invalid or unsupported")
     return GoogleSheetsStore(build_service(config_dir), str(config["spreadsheet_id"]))
 
@@ -756,6 +945,7 @@ def parser() -> argparse.ArgumentParser:
 
     commands.add_parser("doctor")
     commands.add_parser("format-workbook")
+    commands.add_parser("migrate-schema-v2")
 
     for name in ("upsert-platform", "upsert-campaign", "upsert-submission", "append-event"):
         item = commands.add_parser(name)
@@ -800,6 +990,9 @@ def main(argv: list[str] | None = None) -> int:
                     write_private_json(config_dir / "v1-sheets.json", config)
                     store.verify_schema()
                 output = config
+        elif args.command == "migrate-schema-v2":
+            with writer_lock(config_dir):
+                output = migrate_schema_v2(config_dir)
         elif args.command == "doctor":
             store = load_store(config_dir)
             metadata = store.verify_schema()
