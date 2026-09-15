@@ -25,7 +25,7 @@ Google Sheets is the only writable V1 record store. Use the bundled CLI for auth
 
 Workbook row-one labels are readable Chinese business names, with audit-critical columns first and system fields last. Fixed-choice cells use low-saturation status colors; other cells use a light neutral background. JSON inputs and internal validation continue to use the documented snake_case field keys. Run `uv run python scripts/sheets_record.py format-workbook` to restore labels, gridlines, frozen panes, widths, and styling after manual formatting changes.
 
-The current workbook schema is version 3. If `doctor` reports a configured schema-v2 workbook, run `uv run python scripts/sheets_record.py migrate-schema-v3` once; the bundled migration preserves existing rows, removes redundant system timestamps, and reorders columns for human review.
+The current workbook schema is version 4. If `doctor` reports a configured schema-v3 workbook, run `uv run python scripts/sheets_record.py migrate-schema-v4` once; the bundled migration preserves existing rows and renders business timestamps as local `YYYY-MM-DD HH:MM` values for human review.
 
 Never invent product, company, founder, pricing, address, launch, ownership, contact, or legal facts. Keep optional unknowns blank and block required unknowns.
 

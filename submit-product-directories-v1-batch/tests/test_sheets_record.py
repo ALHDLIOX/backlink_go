@@ -397,23 +397,22 @@ class ValidationTests(unittest.TestCase):
         value.pop("notes")
         MODEL.validate_platform(value)
 
-    def test_legacy_rows_are_reordered_and_redundant_times_removed(self):
+    def test_legacy_rows_receive_compact_times(self):
         legacy_campaign = {key: "legacy" for key in MODEL.LEGACY_CAMPAIGN_HEADERS}
         migrated_campaign = MODEL.migrate_legacy_record("Campaigns", legacy_campaign)
         self.assertEqual(migrated_campaign["policy_version"], "legacy")
-        self.assertNotIn("created_at", migrated_campaign)
-        self.assertNotIn("updated_at", migrated_campaign)
 
         legacy_submission = {key: key for key in MODEL.LEGACY_SUBMISSION_HEADERS}
+        legacy_submission.update({"submit_timestamp": NOW, "last_checked": NOW})
         migrated_submission = MODEL.migrate_legacy_record("Submissions", legacy_submission)
         self.assertEqual(migrated_submission["execution_method"], "execution_method")
-        self.assertNotIn("created_at", migrated_submission)
-        self.assertNotIn("updated_at", migrated_submission)
+        self.assertEqual(migrated_submission["submit_timestamp"], "2026-09-15 10:00")
+        self.assertEqual(migrated_submission["last_checked"], "2026-09-15 10:00")
 
-    def test_schema_v3_migration_request_resizes_tables_and_updates_metadata(self):
+    def test_schema_v4_migration_request_preserves_tables_and_updates_metadata(self):
         properties = {name: {"sheetId": index} for index, name in enumerate(MODEL.TABLE_HEADERS, start=1)}
         records = {name: [] for name in MODEL.TABLE_HEADERS}
-        requests = SHEETS.schema_v3_migration_requests(properties, records)
+        requests = SHEETS.schema_v4_migration_requests(properties, records)
         sizes = {
             item["updateSheetProperties"]["properties"]["sheetId"]:
             item["updateSheetProperties"]["properties"]["gridProperties"]["columnCount"]
@@ -424,7 +423,12 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(sizes[2], len(MODEL.CAMPAIGN_HEADERS))
         self.assertEqual(sizes[3], len(MODEL.SUBMISSION_HEADERS))
         metadata = [item for item in requests if "updateDeveloperMetadata" in item]
-        self.assertEqual(metadata[0]["updateDeveloperMetadata"]["developerMetadata"]["metadataValue"], "3")
+        self.assertEqual(metadata[0]["updateDeveloperMetadata"]["developerMetadata"]["metadataValue"], "4")
+
+    def test_timestamps_are_compacted_to_local_minute_precision(self):
+        self.assertEqual(MODEL.compact_timestamp(NOW), "2026-09-15 10:00")
+        prepared = MODEL.prepare_record("event", event(timestamp="2026-09-15T10:05:39+08:00"))
+        self.assertEqual(prepared["timestamp"], "2026-09-15 10:05")
 
     def test_tracking_parameters_are_removed_but_route_query_remains(self):
         value = MODEL.normalize_url("HTTPS://Directory.Test/submit/?category=ai&utm_source=x#top")

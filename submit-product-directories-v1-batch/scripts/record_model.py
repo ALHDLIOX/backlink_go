@@ -9,8 +9,8 @@ from datetime import datetime
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
-SCHEMA_VERSION = "3"
-LEGACY_SCHEMA_VERSION = "2"
+SCHEMA_VERSION = "4"
+LEGACY_SCHEMA_VERSION = "3"
 POLICY_VERSION = "spd-v1-policy-2"
 
 ALLOWED_STATUSES = {
@@ -95,31 +95,11 @@ EVENT_HEADERS = [
     "action", "result", "evidence_reference", "actor_alias",
 ]
 
-LEGACY_CAMPAIGN_HEADERS = [
-    "campaign_id", "spd_version", "product_canonical_id", "canonical_url",
-    "source_list_reference", "source_urls", "batch_authorization_reference",
-    "execution_shard_size", "policy_version", "created_at", "updated_at", "row_version",
-]
-
-LEGACY_SUBMISSION_HEADERS = [
-    "campaign_id", "queue_id", "platform_id", "product_canonical_id", "website",
-    "platform_domain", "route", "account_alias", "idempotency_key",
-    "execution_shard", "execution_method", "execution_notes", "legitimacy_gate",
-    "authorization_reference",
-    "status", "verification_preflight", "fields_entered", "fields_omitted",
-    "agreements_subscriptions", "submit_timestamp", "exact_result",
-    "evidence_reference", "public_listing_url", "backend_checked",
-    "mailbox_checked", "public_page_checked", "last_checked", "follow_up",
-    "created_at", "updated_at", "row_version",
-]
+LEGACY_CAMPAIGN_HEADERS = list(CAMPAIGN_HEADERS)
+LEGACY_SUBMISSION_HEADERS = list(SUBMISSION_HEADERS)
 
 LEGACY_TABLE_HEADERS = {
-    "Platforms": [
-        "platform_id", "platform_domain", "website_name", "canonical_submission_url",
-        "route", "account_required", "verification_pattern", "cost_model",
-        "reciprocal_requirement", "availability", "last_verified_at", "source",
-        "notes", "row_version", "updated_at",
-    ],
+    "Platforms": list(PLATFORM_HEADERS),
     "Campaigns": LEGACY_CAMPAIGN_HEADERS,
     "Submissions": LEGACY_SUBMISSION_HEADERS,
     "Events": EVENT_HEADERS,
@@ -170,14 +150,14 @@ def display_headers(tab_name: str) -> list[str]:
 
 
 def legacy_display_headers(tab_name: str) -> list[str]:
-    """Return the schema-v1 labels used only by the v1-to-v2 migration."""
+    """Return the prior schema labels used only by the one-step migration."""
     return [HEADER_LABELS[header] for header in LEGACY_TABLE_HEADERS[tab_name]]
 
 
 def migrate_legacy_record(tab_name: str, record: dict[str, object]) -> dict[str, str]:
-    """Reorder schema-v2 rows and remove redundant system timestamps."""
+    """Convert schema-v3 timestamps to the compact local display format."""
     migrated = {key: record.get(key, "") for key in TABLE_HEADERS[tab_name]}
-    return {key: str(value) for key, value in migrated.items()}
+    return compact_record_timestamps({key: str(value) for key, value in migrated.items()})
 
 DROPDOWNS = {
     ("Submissions", "status"): sorted(ALLOWED_STATUSES),
@@ -226,11 +206,31 @@ def _assert_iso(value: object, field: str, *, allow_sentinel: bool = False) -> N
     if allow_sentinel and text.lower() in {"", "not submitted", "not checked", "not applicable"}:
         return
     try:
+        datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise RecordValidationError(f"{field} must be an ISO-8601 timestamp") from exc
+
+
+TIMESTAMP_FIELDS = {"last_verified_at", "submit_timestamp", "last_checked", "timestamp"}
+
+
+def compact_timestamp(value: object) -> str:
+    """Render a validated timestamp as local date and minute for human review."""
+    text = str(value).strip()
+    if text.lower() in {"", "not submitted", "not checked", "not applicable", "unknown"}:
+        return text
+    try:
         parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError as exc:
-        raise RecordValidationError(f"{field} must be an ISO-8601 timestamp with timezone") from exc
-    if parsed.tzinfo is None:
-        raise RecordValidationError(f"{field} must include a timezone")
+        raise RecordValidationError("timestamp must be ISO-8601") from exc
+    return parsed.strftime("%Y-%m-%d %H:%M")
+
+
+def compact_record_timestamps(record: dict[str, object]) -> dict[str, str]:
+    compacted = {key: str(value) for key, value in record.items()}
+    for field in TIMESTAMP_FIELDS & compacted.keys():
+        compacted[field] = compact_timestamp(compacted[field])
+    return compacted
 
 
 def _check_sensitive(record: dict[str, object]) -> None:
@@ -413,6 +413,7 @@ def prepare_record(
         headers = SUBMISSION_HEADERS
     elif kind == "event":
         validate_event(prepared)
+        prepared = compact_record_timestamps(prepared)
         return {key: str(prepared.get(key, "")) for key in EVENT_HEADERS}
     else:
         raise RecordValidationError(f"unknown record kind: {kind}")
@@ -420,6 +421,7 @@ def prepare_record(
         prepared["row_version"] = int(existing.get("row_version", 0) or 0) + 1
     else:
         prepared["row_version"] = 1
+    prepared = compact_record_timestamps(prepared)
     return {key: str(prepared.get(key, "")) for key in headers}
 
 

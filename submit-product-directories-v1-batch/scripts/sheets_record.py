@@ -26,6 +26,7 @@ from record_model import (
     SCHEMA_VERSION,
     SUBMISSION_HEADERS,
     TABLE_HEADERS,
+    compact_record_timestamps,
     display_headers,
     legacy_display_headers,
     migrate_legacy_record,
@@ -407,11 +408,11 @@ def _cell_row(values: list[object]) -> dict[str, object]:
     }
 
 
-def schema_v3_migration_requests(
+def schema_v4_migration_requests(
     properties: dict[str, dict[str, Any]],
     records: dict[str, list[dict[str, str]]],
 ) -> list[dict[str, Any]]:
-    """Build one atomic Sheets batchUpdate from schema v2 to schema v3."""
+    """Build one atomic Sheets batchUpdate from schema v3 to schema v4."""
     requests: list[dict[str, Any]] = []
     for tab_name, new_headers in TABLE_HEADERS.items():
         sheet_id = properties[tab_name]["sheetId"]
@@ -514,8 +515,8 @@ def schema_v3_migration_requests(
     return requests
 
 
-def migrate_schema_v3(config_dir: Path) -> dict[str, object]:
-    """Migrate the configured workbook from schema v2 to the audit-first v3 schema."""
+def migrate_schema_v4(config_dir: Path) -> dict[str, object]:
+    """Migrate the configured workbook from schema v3 to compact local timestamps."""
     config_path = config_dir / "v1-sheets.json"
     require_private_file(config_path)
     config = read_json_file(config_path)
@@ -562,7 +563,7 @@ def migrate_schema_v3(config_dir: Path) -> dict[str, object]:
         properties[item["title"]] = item
     store.service.spreadsheets().batchUpdate(
         spreadsheetId=store.spreadsheet_id,
-        body={"requests": schema_v3_migration_requests(properties, migrated_records)},
+        body={"requests": schema_v4_migration_requests(properties, migrated_records)},
     ).execute()
     store.verify_schema()
     config["schema_version"] = SCHEMA_VERSION
@@ -861,6 +862,7 @@ def upsert(store: GoogleSheetsStore, kind: str, payload: dict[str, Any]) -> dict
     if not key_value:
         raise RecordValidationError(f"{key_field} is required")
     validator(payload)
+    payload = compact_record_timestamps(payload)
     existing_records = store.records(tab_name)
     matches = [
         (index, record) for index, record in enumerate(existing_records, start=2)
@@ -1053,7 +1055,7 @@ def parser() -> argparse.ArgumentParser:
 
     commands.add_parser("doctor")
     commands.add_parser("format-workbook")
-    commands.add_parser("migrate-schema-v3")
+    commands.add_parser("migrate-schema-v4")
 
     for name in ("upsert-platform", "upsert-campaign", "upsert-submission", "append-event"):
         item = commands.add_parser(name)
@@ -1098,9 +1100,9 @@ def main(argv: list[str] | None = None) -> int:
                     write_private_json(config_dir / "v1-sheets.json", config)
                     store.verify_schema()
                 output = config
-        elif args.command == "migrate-schema-v3":
+        elif args.command == "migrate-schema-v4":
             with writer_lock(config_dir):
-                output = migrate_schema_v3(config_dir)
+                output = migrate_schema_v4(config_dir)
         elif args.command == "doctor":
             store = load_store(config_dir)
             metadata = store.verify_schema()

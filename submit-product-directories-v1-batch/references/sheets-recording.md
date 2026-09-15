@@ -14,13 +14,13 @@ uv run python scripts/sheets_record.py init --title "Backlink Operations"
 uv run python scripts/sheets_record.py doctor
 ```
 
-Existing schema-v2 workbooks must be upgraded once before `doctor` or any write:
+Existing schema-v3 workbooks must be upgraded once before `doctor` or any write:
 
 ```bash
-uv run python scripts/sheets_record.py migrate-schema-v3
+uv run python scripts/sheets_record.py migrate-schema-v4
 ```
 
-The migration preserves existing rows, removes redundant generic created/updated timestamps, moves audit-critical fields to the left, applies low-fatigue formatting and status colors, and updates the workbook atomically.
+The migration preserves existing rows and converts business timestamps from full RFC 3339 values to local `YYYY-MM-DD HH:MM` values. New writes accept full ISO-8601 input but store the same compact minute-level form.
 
 To restore the workbook's readable Chinese headers and standard presentation:
 
@@ -79,7 +79,7 @@ Use exact snake_case keys. The generated `row_version` field must be omitted fro
   "cost_model": "free",
   "reciprocal_requirement": "none",
   "availability": "available",
-  "last_verified_at": "2026-09-15T10:00:00+08:00",
+  "last_verified_at": "2026-09-15 10:00",
   "source": "live inspection",
   "notes": "none"
 }
@@ -137,7 +137,7 @@ Put one public source URL per line in `source_urls`. Do not include authenticati
   "backend_checked": "not applicable",
   "mailbox_checked": "not applicable",
   "public_page_checked": "not applicable",
-  "last_checked": "2026-09-15T10:00:00+08:00",
+  "last_checked": "2026-09-15 10:00",
   "follow_up": "run verification preflight"
 }
 ```
@@ -152,7 +152,7 @@ The idempotency key must exactly equal `platform_domain|product_canonical_id|acc
   "campaign_id": "campaign-example-001",
   "queue_id": "Q-001",
   "idempotency_key": "directory.example|product-example|account-example|directory listing",
-  "timestamp": "2026-09-15T10:05:00+08:00",
+  "timestamp": "2026-09-15 10:05",
   "action": "inspection",
   "result": "completed",
   "evidence_reference": "ev-example-001",

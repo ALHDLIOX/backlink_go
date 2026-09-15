@@ -1,6 +1,6 @@
 # SPD V1 Batch status model
 
-Google Sheets is the authoritative V1 record store. The workbook schema version is `3` and contains exactly four worksheets. Use `scripts/sheets_record.py`; do not locate or write cells manually.
+Google Sheets is the authoritative V1 record store. The workbook schema version is `4` and contains exactly four worksheets. Use `scripts/sheets_record.py`; do not locate or write cells manually. Business timestamps are stored in the workbook's local time at minute precision as `YYYY-MM-DD HH:MM`.
 
 ## Platforms
 
