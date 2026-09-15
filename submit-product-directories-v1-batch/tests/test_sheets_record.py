@@ -697,6 +697,17 @@ class StoreTests(unittest.TestCase):
 
 
 class LockTests(unittest.TestCase):
+    def test_lock_descriptor_is_closed_exactly_once(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with (
+                patch.object(SHEETS.os, "open", return_value=37),
+                patch.object(SHEETS.os, "write"),
+                patch.object(SHEETS.os, "close") as close,
+            ):
+                with SHEETS.writer_lock(Path(temporary)):
+                    pass
+            close.assert_called_once_with(37)
+
     def test_lock_rejects_second_writer(self):
         with tempfile.TemporaryDirectory() as temporary:
             config_dir = Path(temporary)

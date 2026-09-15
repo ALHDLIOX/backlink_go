@@ -306,13 +306,11 @@ def writer_lock(config_dir: Path):
         descriptor = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     try:
         os.write(descriptor, str(os.getpid()).encode("ascii"))
+    finally:
         os.close(descriptor)
+    try:
         yield
     finally:
-        try:
-            os.close(descriptor)
-        except OSError:
-            pass
         lock_path.unlink(missing_ok=True)
 
 
