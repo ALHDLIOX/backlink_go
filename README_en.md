@@ -21,7 +21,7 @@ This is not a one-click link-spam tool. It does not promise acceptance, dofollow
 
 | Component | Best for | Main capabilities |
 |---|---|---|
-| [`SPD V1 Batch`](submit-product-directories-v1-batch/SKILL.md) | Large, prequalified URL lists | Normalize, deduplicate, shard, verification-first queues, sequential form execution, recovery, throughput records |
+| [`SPD V1 Batch`](submit-product-directories-v1-batch/SKILL.md) | Large, prequalified URL lists | Normalize, deduplicate, shard, verification-first queues, sequential execution, Google Sheets records, recovery |
 | [`SPD V2 Quality`](submit-product-directories-v2-quality/SKILL.md) | Small quality-first campaigns | Up to 10 sites per batch, audience and SEO quality gates, action-level authorization, evidence and durability checks |
 | [`writer`](writer/SKILL.md) | General website SEO articles | Brief, outline, fact-checking, SEO audit, rewrite, humanization, images, file packaging |
 | [`linkedin-writer`](writer/linkedin-writer/SKILL.md) | LinkedIn Articles and newsletters | Topic research, business depth, thought leadership, SEO settings, publishing pack |
@@ -32,6 +32,8 @@ This is not a one-click link-spam tool. It does not promise acceptance, dofollow
 ## Choose a submission skill
 
 Use `$submit-product-directories-v1-batch` when you already have a large set of legitimate and relevant URLs. V1 optimizes queue throughput, deduplication, verification handling, sequential execution within a browser profile, and resumability. “Batch” means batch planning and queue processing; it does not mean uncontrolled parallel submission or bypassing site limits.
+
+V1 records state through its bundled Python CLI and the Google Sheets API. A single `Backlink Operations` workbook contains `Platforms`, `Campaigns`, `Submissions`, and append-only `Events`. Google Sheets is authoritative; Markdown is export-only. The agent does not need to read Google Sheets connector documentation or construct spreadsheet requests.
 
 Use `$submit-product-directories-v2-quality` when relevance, audience value, governance, referral potential, and listing durability matter more than volume. V2 uses small pilots of no more than 10 sites, qualifies every destination before form work, checks authorization for each consequential action, and keeps structured evidence.
 

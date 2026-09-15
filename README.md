@@ -21,7 +21,7 @@
 
 | 内容 | 适合场景 | 核心特点 |
 |---|---|---|
-| [`SPD V1 Batch`](submit-product-directories-v1-batch/SKILL.md) | 已经有一批合法、相关的目录 URL，希望用 Codex 批量推进 | URL 规范化、去重、分片、验证优先、逐站提交、断点恢复、吞吐统计 |
+| [`SPD V1 Batch`](submit-product-directories-v1-batch/SKILL.md) | 已经有一批合法、相关的目录 URL，希望用 Codex 批量推进 | URL 规范化、去重、分片、验证优先、逐站提交、Google Sheets 记录、断点恢复 |
 | [`SPD V2 Quality`](submit-product-directories-v2-quality/SKILL.md) | 希望 Codex 按顺序少量提交，更重视渠道质量和长期价值 | 每批最多 10 个站点、质量门槛、逐动作授权、证据记录、发布后质量检查 |
 | [`writer`](writer/SKILL.md) | 官网博客、教程、对比、榜单、解释文等通用 SEO 内容 | 选题、提纲、事实核查、SEO 审计、改写、humanization、图片与文件打包 |
 | [`linkedin-writer`](writer/linkedin-writer/SKILL.md) | LinkedIn Article、newsletter、B2B 长文 | LinkedIn 话题研究、商务深度、专业观点、SEO 设置和发布包 |
@@ -44,6 +44,8 @@
 - 按字段长度复用已批准的产品介绍，但保持品牌、网址和事实一致；
 - 在同一浏览器配置中逐站提交，每完成一个站点就先写入结果，再移动队列游标；
 - 记录草稿、等待验证、等待审核、已发布、结果未知、失败和排除项，方便中断后继续。
+
+V1 使用自带的 Python CLI 通过 Google Sheets API 直接维护一个 `Backlink Operations` 工作簿，包含 `Platforms`、`Campaigns`、`Submissions` 和 `Events`。Google Sheets 是唯一写入源；Markdown 只作为按需导出的备份。Agent 不需要读取 Google Sheets 插件文档或手工拼接表格请求。
 
 “批量”指的是批量整理、分片和推进队列，不代表无节制并发，更不代表绕过网站限制。V1 仍然要求真实信息、合法渠道、授权提交和逐项留证。
 
@@ -131,6 +133,17 @@ Codex Skills 用于保存可重复使用的说明、资料和脚本；调用时�
 每个站点完成后立即记录证据，结果不明确时不要重试。
 ```
 
+V1 首次使用前需要启用 Google Sheets API、创建桌面 OAuth 客户端并执行：
+
+```bash
+uv sync --dev
+uv run python submit-product-directories-v1-batch/scripts/sheets_record.py auth --client-secret /approved/path/client-secret.json
+uv run python submit-product-directories-v1-batch/scripts/sheets_record.py init --title "Backlink Operations"
+uv run python submit-product-directories-v1-batch/scripts/sheets_record.py doctor
+```
+
+OAuth 文件和工作簿配置保存在 `~/.config/backlink-go/`，不会写入仓库。
+
 ### 按顺序精细提交示例
 
 ```text
@@ -207,10 +220,10 @@ CAPTCHA、Turnstile、2FA、Passkey、邮箱/手机验证等必须由网站原�
 
 ## 校验与测试
 
-两个外链提交 Skill 都带有记录审计脚本和测试：
+两个外链提交 Skill 都带有记录审计脚本和测试。V1 审计 Google Sheets 中的权威记录，V2 目前仍审计 Markdown：
 
 ```bash
-python3 submit-product-directories-v1-batch/scripts/audit_submission_record.py path/to/v1-record.md
+uv run python submit-product-directories-v1-batch/scripts/sheets_record.py audit --campaign-id CAMPAIGN_ID
 python3 submit-product-directories-v2-quality/scripts/audit_submission_record.py path/to/v2-record.md
 
 python3 -m unittest discover -s submit-product-directories-v1-batch/tests

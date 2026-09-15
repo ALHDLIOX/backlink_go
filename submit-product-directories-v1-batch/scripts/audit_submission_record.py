@@ -6,40 +6,21 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from collections import Counter
 from pathlib import Path
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
 
-ALLOWED_STATUSES = {
-    "not attempted",
-    "form in progress",
-    "draft saved",
-    "submitted",
-    "submission outcome unknown",
-    "awaiting approval",
-    "awaiting email verification",
-    "published",
-    "blocked — manual verification",
-    "blocked — missing verified data",
-    "blocked — account or email policy",
-    "unavailable",
-    "paid-only",
-    "ineligible",
-    "duplicate — no action",
-    "terminated by user",
-}
-
-ALLOWED_VERIFICATION = {
-    "not checked",
-    "automatic verification passed",
-    "awaiting manual verification",
-    "manual verification completed",
-    "verification unavailable before form",
-    "verification expired/reset",
-    "no verification presented",
-    "deferred by user",
-}
+from record_model import (  # noqa: E402
+    RecordValidationError,
+    UNRESOLVED_VERIFICATION,
+    normalize_url,
+    validate_privacy,
+    validate_submission_state,
+)
 
 REQUIRED_CONTROLS = {
     "SPD version",
@@ -88,31 +69,6 @@ REQUIRED_SITE_FIELDS = {
     "Follow-up",
 }
 
-TERMINAL_OR_PENDING = {
-    "submitted",
-    "submission outcome unknown",
-    "awaiting approval",
-    "awaiting email verification",
-    "published",
-}
-
-EXECUTED = TERMINAL_OR_PENDING | {"form in progress", "draft saved"}
-UNRESOLVED_VERIFICATION = {
-    "awaiting manual verification",
-    "verification expired/reset",
-    "deferred by user",
-}
-
-TRACKING_KEYS = {
-    "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
-    "gclid", "fbclid", "msclkid", "ref", "referrer",
-}
-SENSITIVE_QUERY_KEYS = {
-    "token", "key", "api_key", "apikey", "code", "state", "session",
-    "auth", "password", "otp", "signature", "sig",
-}
-
-
 def clean(value: str) -> str:
     return re.sub(r"[*`]", "", value).strip()
 
@@ -122,25 +78,6 @@ def parse_fields(body: str) -> dict[str, str]:
     for match in re.finditer(r"^- ([^:\n]+):\s*(.*)$", body, re.MULTILINE):
         fields[clean(match.group(1))] = clean(match.group(2))
     return fields
-
-
-def normalize_url(value: str) -> str:
-    try:
-        parts = urlsplit(value.strip())
-    except ValueError:
-        return value.strip()
-    host = (parts.hostname or "").lower()
-    if not host:
-        return value.strip()
-    port = f":{parts.port}" if parts.port else ""
-    query = [
-        (key, val) for key, val in parse_qsl(parts.query, keep_blank_values=True)
-        if key.lower() not in TRACKING_KEYS
-    ]
-    path = parts.path or "/"
-    if path != "/":
-        path = path.rstrip("/")
-    return urlunsplit(((parts.scheme or "https").lower(), host + port, path, urlencode(query), ""))
 
 
 def parse_record(text: str) -> tuple[dict[str, str], list[dict[str, object]]]:
@@ -185,22 +122,18 @@ def audit(text: str) -> dict[str, object]:
     if not re.search(r"^## Source list\s*$\n(?:\s*\n)*1\.\s+\S+", text, re.MULTILINE):
         errors.append("Source list must contain at least one URL")
 
-    email_matches = sorted(set(re.findall(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", text, re.IGNORECASE)))
-    if email_matches:
-        errors.append("raw email address found; use a contact alias")
+    try:
+        validate_privacy({"document": text})
+    except RecordValidationError as exc:
+        errors.append(str(exc))
     secret_label = re.search(
-        r"^-\s*(?:password|passcode|otp|recovery code|cookie|session id|oauth code|magic link)\s*:\s*(?!not applicable|none|redacted)\S+",
+        r"^-\s*(?:password|passcode|otp|recovery code|cookie|session id|oauth code|"
+        r"magic link)\s*:\s*(?!not applicable|none|redacted)\S+",
         text,
         re.IGNORECASE | re.MULTILINE,
     )
     if secret_label:
         errors.append("secret-bearing field found in shareable record")
-    for url in re.findall(r"https?://[^\s)>]+", text):
-        keys = {key.lower() for key, _ in parse_qsl(urlsplit(url).query, keep_blank_values=True)}
-        if keys & SENSITIVE_QUERY_KEYS:
-            errors.append("URL with sensitive authentication parameter found")
-            break
-
     seen_keys: dict[str, str] = {}
     seen_urls: dict[str, str] = {}
     status_counts: Counter[str] = Counter()
@@ -219,15 +152,6 @@ def audit(text: str) -> dict[str, object]:
         verification = fields.get("Verification preflight", "")
         status_counts[status or "missing"] += 1
         verification_counts[verification or "missing"] += 1
-        if status not in ALLOWED_STATUSES:
-            errors.append(f"{name}: invalid status: {status or 'missing'}")
-        if verification not in ALLOWED_VERIFICATION:
-            errors.append(f"{name}: invalid verification state: {verification or 'missing'}")
-        capability_result = fields.get("Platform capability result", "").lower()
-        if capability_result not in {"supported", "supported with handoff", "unavailable"}:
-            errors.append(f"{name}: invalid platform capability result")
-        if status in EXECUTED and capability_result == "unavailable":
-            errors.append(f"{name}: executed without a compatible platform capability")
         if verification in UNRESOLVED_VERIFICATION:
             manual_queue.append(name)
 
@@ -246,39 +170,27 @@ def audit(text: str) -> dict[str, object]:
             else:
                 seen_urls[normalized] = name
 
-        if status in EXECUTED and fields.get("Legitimacy gate") != "passed":
-            errors.append(f"{name}: executed without a passed legitimacy gate")
-        if status in EXECUTED and fields.get("Authorization reference", "") in {"", "not applicable", "none"}:
-            errors.append(f"{name}: executed without an authorization reference")
-        if status in EXECUTED and verification in UNRESOLVED_VERIFICATION:
-            errors.append(f"{name}: executed while verification remained unresolved")
-
-        entered = fields.get("Fields entered", "").lower()
-        agreements = fields.get("Agreements/subscriptions", "").lower()
-        submitted_at = fields.get("Submit timestamp", "").lower()
-        if status == "not attempted":
-            if entered not in {"", "none"}:
-                errors.append(f"{name}: not attempted but listing fields were entered")
-            if agreements not in {"", "none"}:
-                errors.append(f"{name}: not attempted but agreements/subscriptions were selected")
-            if submitted_at not in {"", "not submitted", "not applicable"}:
-                errors.append(f"{name}: not attempted but has a submit timestamp")
-
-        if status in TERMINAL_OR_PENDING:
-            if submitted_at in {"", "not submitted", "not applicable"}:
-                errors.append(f"{name}: {status} requires a submit timestamp")
-            if fields.get("Exact result", "").lower() in {"", "not attempted", "unknown"}:
-                errors.append(f"{name}: {status} requires an exact result")
-            if fields.get("Evidence reference", "").lower() in {"", "not applicable", "none"}:
-                errors.append(f"{name}: {status} requires an evidence reference")
-
-        if status == "submission outcome unknown":
-            for check in ("Backend checked", "Mailbox checked", "Public page checked"):
-                if fields.get(check, "").lower() in {"", "not applicable", "not checked"}:
-                    errors.append(f"{name}: unknown outcome requires {check}")
-
-        if status == "published" and fields.get("Public listing URL", "").lower() in {"", "not applicable", "none"}:
-            errors.append(f"{name}: published requires a public listing URL")
+        state_record = {
+            "status": status,
+            "verification_preflight": verification,
+            "platform_capability_result": fields.get("Platform capability result", ""),
+            "legitimacy_gate": fields.get("Legitimacy gate", ""),
+            "authorization_reference": fields.get("Authorization reference", ""),
+            "fields_entered": fields.get("Fields entered", ""),
+            "agreements_subscriptions": fields.get("Agreements/subscriptions", ""),
+            "submit_timestamp": fields.get("Submit timestamp", ""),
+            "exact_result": fields.get("Exact result", ""),
+            "evidence_reference": fields.get("Evidence reference", ""),
+            "public_listing_url": fields.get("Public listing URL", ""),
+            "backend_checked": fields.get("Backend checked", ""),
+            "mailbox_checked": fields.get("Mailbox checked", ""),
+            "public_page_checked": fields.get("Public page checked", ""),
+            "last_checked": fields.get("Last checked", ""),
+        }
+        try:
+            validate_submission_state(state_record)
+        except RecordValidationError as exc:
+            errors.append(f"{name}: {exc}")
 
     if not sites:
         errors.append("record contains no website sections")

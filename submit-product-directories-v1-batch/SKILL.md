@@ -15,11 +15,13 @@ description: SPD V1 Batch. Process large, user-supplied sets of legitimate produ
 
 ## Load controls
 
-1. Read the verified product profile, brand rules, contact and credential aliases, approved assets, source list, batch authorization, and existing record.
+1. Read the verified product profile, brand rules, contact and credential aliases, approved assets, source list, batch authorization, and existing campaign state.
 2. Read [references/workflow.md](references/workflow.md) before planning or browser work.
 3. Read [references/status-model.md](references/status-model.md) before writing or auditing records.
 4. Read [references/browser-control-routing.md](references/browser-control-routing.md) before any browser or app interaction. Run the Windows/macOS/Linux capability preflight and select the backend from the current environment; do not assume a specific browser, operating system, or Computer Use support.
-5. Copy [assets/submission-record-template.md](assets/submission-record-template.md) when no V1 Batch record exists.
+5. Read [references/sheets-recording.md](references/sheets-recording.md) before the first record operation. Run `uv run python scripts/sheets_record.py doctor` before processing the queue.
+
+Google Sheets is the only writable V1 record store. Use the bundled CLI for authentication, initialization, validation, lookup, writes, audits, and Markdown exports. Do not call a Google Sheets connector, read its plugin documentation, hand-author spreadsheet requests, or maintain a second writable Markdown record. Stop on missing OAuth, unavailable API access, or schema drift.
 
 Never invent product, company, founder, pricing, address, launch, ownership, contact, or legal facts. Keep optional unknowns blank and block required unknowns.
 
@@ -53,7 +55,7 @@ Use only the exact brand, product name, or naked canonical URL as public link te
 2. Reuse approved field variants by length and category, while preserving exact public brand spelling and truthful meaning.
 3. Keep newsletters and optional promotions off unless authorized.
 4. Review plan, cost, URL, identity, category, agreements, uploads, and verification immediately before submission.
-5. Submit sequentially within a browser profile. Record the result before advancing the queue cursor.
+5. Submit sequentially within a browser profile. Append the action event and upsert the submission result with `scripts/sheets_record.py` before advancing the queue cursor.
 6. Never retry an ambiguous final action. Check the account backend, mailbox, and public page first.
 7. Save drafts, transient failures, manual actions, and terminal outcomes as distinct states so the campaign can resume without replaying completed work.
 
@@ -65,20 +67,13 @@ Use only the exact brand, product name, or naked canonical URL as public link te
 
 ## Close and measure
 
-Run:
+Run from the skill directory:
 
 On macOS or Linux:
 
 ```bash
-python3 scripts/audit_submission_record.py path/to/v1-batch-record.md
-python3 scripts/audit_submission_record.py path/to/v1-batch-record.md --json
-```
-
-On Windows, use `py -3` or an equivalent Python 3 launcher:
-
-```powershell
-py -3 scripts/audit_submission_record.py path\to\v1-batch-record.md
-py -3 scripts/audit_submission_record.py path\to\v1-batch-record.md --json
+uv run python scripts/sheets_record.py audit --campaign-id CAMPAIGN_ID
+uv run python scripts/sheets_record.py audit --campaign-id CAMPAIGN_ID --json
 ```
 
 Report totals by queue state, verification state, shard, and outcome. Measure queue completion rate, verified submissions per operator hour, duplicate avoidance, recovery rate, and unresolved manual workload. Report published listings separately from submitted forms. Do not report submission volume as proof of SEO value.
@@ -87,6 +82,9 @@ Report totals by queue state, verification state, shard, and outcome. Measure qu
 
 - [references/workflow.md](references/workflow.md): sharding, verification queues, execution, and recovery.
 - [references/status-model.md](references/status-model.md): record schema and state invariants.
+- [references/sheets-recording.md](references/sheets-recording.md): direct Google API setup, fixed CLI, JSON payloads, dry runs, audit, and export.
 - [references/browser-control-routing.md](references/browser-control-routing.md): backend-neutral browser selection, interaction, confirmation, recovery, and evidence rules.
-- [assets/submission-record-template.md](assets/submission-record-template.md): privacy-safe V1 Batch template.
-- `scripts/audit_submission_record.py`: batch integrity, secret, duplicate, and state auditor.
+- [assets/submission-record-template.md](assets/submission-record-template.md): read-only Markdown export shape.
+- `scripts/sheets_record.py`: authoritative Google Sheets record CLI.
+- `scripts/record_model.py`: shared schema, privacy, state, audit, and export rules.
+- `scripts/audit_submission_record.py`: compatibility auditor for exported or legacy Markdown.
