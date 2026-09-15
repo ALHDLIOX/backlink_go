@@ -13,6 +13,7 @@ if [[ ! -f "$validator" ]]; then
 fi
 
 skills=(
+  backlink-operations-v1
   submit-product-directories-v1-batch
   submit-product-directories-v2-quality
   writer
@@ -25,6 +26,9 @@ for skill in "${skills[@]}"; do
   echo "Validating $skill"
   uv run python "$validator" "$skill"
 done
+
+echo "Running Backlink Operations V1 tests"
+uv run python -m unittest discover -s backlink-operations-v1/tests
 
 echo "Running V1 tests"
 uv run python -m unittest discover -s submit-product-directories-v1-batch/tests

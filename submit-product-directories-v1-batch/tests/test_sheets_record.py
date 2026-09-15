@@ -43,6 +43,7 @@ def platform(**changes):
         "platform_id": "platform-directory-test",
         "platform_domain": "directory.test",
         "website_name": "Directory Test",
+        "platform_type": "directory",
         "canonical_submission_url": "https://directory.test/submit",
         "route": "directory listing",
         "account_required": "yes",
@@ -70,6 +71,32 @@ def campaign(campaign_id="campaign-001", product_id="product-001", **changes):
         "execution_shard_size": "20",
         "policy_version": MODEL.POLICY_VERSION,
     }
+    value.update(changes)
+    return value
+
+
+def article_platform(**changes):
+    value = platform(
+        platform_id="platform-blog-test",
+        platform_domain="blog.test",
+        website_name="Blog Test",
+        platform_type="article",
+        canonical_submission_url="https://blog.test/editor",
+        route="blog article",
+    )
+    value.update(changes)
+    return value
+
+
+def article_campaign(**changes):
+    value = campaign(
+        campaign_id="campaign-article-001",
+        source_urls="https://blog.test/editor",
+        batch_authorization_reference="auth-batch-article-001",
+        workflow_version="Backlink Operations V1",
+        campaign_mode="article",
+    )
+    value.pop("spd_version", None)
     value.update(changes)
     return value
 
@@ -128,6 +155,7 @@ def queued_submission(campaign_id="campaign-001", product_id="product-001", **ch
 def event(campaign_id="campaign-001", product_id="product-001", **changes):
     value = {
         "event_id": "evt-001",
+        "record_type": "submission",
         "campaign_id": campaign_id,
         "queue_id": "Q-001",
         "idempotency_key": f"directory.test|{product_id}|account-001|directory listing",
@@ -135,6 +163,88 @@ def event(campaign_id="campaign-001", product_id="product-001", **changes):
         "action": "final form submission",
         "result": "submitted",
         "evidence_reference": "ev-001",
+        "actor_alias": "operator-001",
+    }
+    value.update(changes)
+    return value
+
+
+FINGERPRINT = "sha256:" + "a" * 64
+
+
+def article(campaign_id="campaign-article-001", product_id="product-001", **changes):
+    article_id = changes.pop("article_id", "article-001")
+    value = {
+        "platform_domain": "blog.test",
+        "website": "https://blog.test/editor",
+        "status": "published",
+        "title": "A useful product guide",
+        "public_url": "https://blog.test/a-useful-product-guide",
+        "target_url": "https://product-001.test/?utm_source=blog&utm_medium=referral&utm_campaign=backlink",
+        "anchor_text": "Product 001",
+        "outbound_href": "https://product-001.test/?utm_source=blog&utm_medium=referral&utm_campaign=backlink",
+        "outbound_rel": "none",
+        "exact_result": "Published",
+        "follow_up": "recheck later",
+        "verification_preflight": "no verification presented",
+        "published_at": NOW,
+        "last_checked": NOW,
+        "article_id": article_id,
+        "queue_id": "A-001",
+        "product_canonical_id": product_id,
+        "campaign_id": campaign_id,
+        "platform_id": "platform-blog-test",
+        "route": "blog article",
+        "account_alias": "account-001",
+        "idempotency_key": f"blog.test|{product_id}|account-001|blog article|{article_id}",
+        "legitimacy_gate": "passed",
+        "authorization_reference": "auth-batch-article-001",
+        "evidence_reference": "ev-article-001",
+        "content_fingerprint": FINGERPRINT,
+        "canonical_policy": "platform original",
+        "backend_checked": "checked",
+        "mailbox_checked": "not applicable",
+        "public_page_checked": "checked",
+        "outbound_link_checked": "checked",
+        "execution_method": "connected browser",
+        "execution_notes": "ephemeral writer mode",
+    }
+    value.update(changes)
+    return value
+
+
+def queued_article(**changes):
+    value = article(
+        status="not attempted",
+        public_url="not applicable",
+        anchor_text="not applicable",
+        outbound_href="not applicable",
+        outbound_rel="not applicable",
+        exact_result="not attempted",
+        follow_up="write article",
+        verification_preflight="not checked",
+        published_at="not submitted",
+        evidence_reference="not applicable",
+        backend_checked="not applicable",
+        mailbox_checked="not applicable",
+        public_page_checked="not applicable",
+        outbound_link_checked="not applicable",
+    )
+    value.update(changes)
+    return value
+
+
+def article_event(**changes):
+    value = {
+        "event_id": "evt-article-001",
+        "record_type": "article",
+        "campaign_id": "campaign-article-001",
+        "queue_id": "A-001",
+        "idempotency_key": "blog.test|product-001|account-001|blog article|article-001",
+        "timestamp": NOW,
+        "action": "article publication",
+        "result": "published",
+        "evidence_reference": "ev-article-001",
         "actor_alias": "operator-001",
     }
     value.update(changes)
@@ -188,7 +298,7 @@ class MemoryStore:
 
 
 class WorkbookSchemaTests(unittest.TestCase):
-    def test_create_body_has_four_frozen_sheets(self):
+    def test_create_body_has_five_frozen_sheets(self):
         body = SHEETS.workbook_create_body("Backlink Operations")
         self.assertEqual([item["properties"]["title"] for item in body["sheets"]], list(MODEL.TABLE_HEADERS))
         self.assertTrue(all(item["properties"]["gridProperties"]["frozenRowCount"] == 1 for item in body["sheets"]))
@@ -196,7 +306,7 @@ class WorkbookSchemaTests(unittest.TestCase):
     def test_initialization_adds_filter_and_dropdowns(self):
         properties = {name: {"sheetId": index} for index, name in enumerate(MODEL.TABLE_HEADERS, start=1)}
         requests = SHEETS.initialization_batch_requests(properties)
-        self.assertEqual(sum("setBasicFilter" in item for item in requests), 4)
+        self.assertEqual(sum("setBasicFilter" in item for item in requests), len(MODEL.TABLE_HEADERS))
         self.assertEqual(sum("setDataValidation" in item for item in requests), len(MODEL.DROPDOWNS))
         self.assertEqual(
             requests[0]["createDeveloperMetadata"]["developerMetadata"]["metadataValue"],
@@ -207,7 +317,7 @@ class WorkbookSchemaTests(unittest.TestCase):
         properties = {name: {"sheetId": index} for index, name in enumerate(MODEL.TABLE_HEADERS, start=1)}
         requests = SHEETS.readable_format_requests(properties)
         sheet_updates = [item["updateSheetProperties"] for item in requests if "updateSheetProperties" in item]
-        self.assertEqual(len(sheet_updates), 4)
+        self.assertEqual(len(sheet_updates), len(MODEL.TABLE_HEADERS))
         self.assertTrue(all(not item["properties"]["gridProperties"]["hideGridlines"] for item in sheet_updates))
         self.assertTrue(all(item["properties"]["gridProperties"]["frozenColumnCount"] == 2 for item in sheet_updates))
         self.assertEqual(MODEL.display_headers("Platforms")[0], "平台名称")
@@ -308,7 +418,7 @@ class WorkbookSchemaTests(unittest.TestCase):
             )
         self.assertEqual(
             len(service.resource.format_requests),
-            1 + 8 + len(MODEL.DROPDOWNS) + len(SHEETS.readable_format_requests({
+            1 + 2 * len(MODEL.TABLE_HEADERS) + len(MODEL.DROPDOWNS) + len(SHEETS.readable_format_requests({
                 name: {"sheetId": index}
                 for index, name in enumerate(MODEL.TABLE_HEADERS, start=1)
             })),
@@ -409,10 +519,39 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(migrated_submission["submit_timestamp"], "2026-09-15 10:00")
         self.assertEqual(migrated_submission["last_checked"], "2026-09-15 10:00")
 
-    def test_schema_v4_migration_request_preserves_tables_and_updates_metadata(self):
-        properties = {name: {"sheetId": index} for index, name in enumerate(MODEL.TABLE_HEADERS, start=1)}
+    def test_schema_v4_rows_gain_typed_v5_fields_without_losing_values(self):
+        old_platform = {
+            key: (
+                "platform-directory-test" if key == "platform_id"
+                else NOW if key == "last_verified_at"
+                else f"old-{key}"
+            )
+            for key in MODEL.LEGACY_PLATFORM_HEADERS
+        }
+        old_campaign = {
+            key: ("V1 Batch" if key == "spd_version" else f"old-{key}")
+            for key in MODEL.LEGACY_CAMPAIGN_HEADERS
+        }
+        old_event = {
+            key: (NOW if key == "timestamp" else f"old-{key}")
+            for key in MODEL.LEGACY_EVENT_HEADERS
+        }
+        migrated_platform = MODEL.migrate_legacy_record("Platforms", old_platform)
+        migrated_campaign = MODEL.migrate_legacy_record("Campaigns", old_campaign)
+        migrated_event = MODEL.migrate_legacy_record("Events", old_event)
+        self.assertEqual(migrated_platform["platform_type"], "directory")
+        self.assertEqual(migrated_platform["notes"], "old-notes")
+        self.assertEqual(migrated_campaign["campaign_mode"], "directory")
+        self.assertEqual(migrated_campaign["workflow_version"], "SPD V1 Batch")
+        self.assertEqual(migrated_campaign["source_urls"], "old-source_urls")
+        self.assertEqual(migrated_event["record_type"], "submission")
+        self.assertEqual(migrated_event["action"], "old-action")
+
+    def test_schema_v5_migration_request_preserves_tables_and_updates_metadata(self):
+        properties = {name: {"sheetId": index} for index, name in enumerate(MODEL.LEGACY_TABLE_HEADERS, start=1)}
         records = {name: [] for name in MODEL.TABLE_HEADERS}
-        requests = SHEETS.schema_v4_migration_requests(properties, records)
+        requests = SHEETS.schema_v5_migration_requests(properties, records)
+        self.assertEqual(sum("addSheet" in item for item in requests), 1)
         sizes = {
             item["updateSheetProperties"]["properties"]["sheetId"]:
             item["updateSheetProperties"]["properties"]["gridProperties"]["columnCount"]
@@ -423,7 +562,11 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(sizes[2], len(MODEL.CAMPAIGN_HEADERS))
         self.assertEqual(sizes[3], len(MODEL.SUBMISSION_HEADERS))
         metadata = [item for item in requests if "updateDeveloperMetadata" in item]
-        self.assertEqual(metadata[0]["updateDeveloperMetadata"]["developerMetadata"]["metadataValue"], "4")
+        self.assertEqual(metadata[0]["updateDeveloperMetadata"]["developerMetadata"]["metadataValue"], "5")
+        added = next(item["addSheet"]["properties"] for item in requests if "addSheet" in item)
+        self.assertEqual(added["title"], "Articles")
+        self.assertEqual(added["index"], 3)
+        self.assertNotIn("_conditionalRuleCount", added)
 
     def test_timestamps_are_compacted_to_local_minute_precision(self):
         self.assertEqual(MODEL.compact_timestamp(NOW), "2026-09-15 10:00")
@@ -449,6 +592,90 @@ class ValidationTests(unittest.TestCase):
     def test_secret_bearing_free_text_is_rejected(self):
         with self.assertRaisesRegex(MODEL.RecordValidationError, "secret-bearing value"):
             MODEL.validate_platform(platform(notes="password: should-not-be-here"))
+
+    def test_legacy_campaign_input_normalizes_and_conflicts_are_rejected(self):
+        prepared = MODEL.prepare_record("campaign", campaign())
+        self.assertEqual(prepared["workflow_version"], "SPD V1 Batch")
+        self.assertEqual(prepared["campaign_mode"], "directory")
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "conflicts"):
+            MODEL.prepare_record(
+                "campaign",
+                campaign(workflow_version="Backlink Operations V1", campaign_mode="article"),
+            )
+
+    def test_legacy_event_input_defaults_to_submission(self):
+        legacy = event()
+        legacy.pop("record_type")
+        prepared = MODEL.prepare_record("event", legacy)
+        self.assertEqual(prepared["record_type"], "submission")
+
+    def test_published_article_accepts_rel_none_and_checks_destination(self):
+        MODEL.validate_article(article())
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "does not match target_url"):
+            MODEL.validate_article(article(outbound_href="https://other.test/"))
+
+    def test_article_body_and_bad_fingerprint_are_rejected(self):
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "body fields"):
+            MODEL.validate_article(article(body="must not persist"))
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "content_fingerprint"):
+            MODEL.validate_article(article(content_fingerprint="not-a-hash"))
+
+    def test_article_unknown_outcome_requires_checks(self):
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "mailbox_checked"):
+            MODEL.validate_article(
+                article(
+                    status="publication outcome unknown",
+                    public_url="not applicable",
+                    outbound_href="not applicable",
+                    outbound_rel="not applicable",
+                    published_at="not submitted",
+                    backend_checked="checked; none found",
+                    mailbox_checked="not checked",
+                    public_page_checked="checked; none found",
+                    outbound_link_checked="not applicable",
+                )
+            )
+
+    def test_article_draft_and_removed_states_require_evidence(self):
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "draft saved requires an exact result"):
+            MODEL.validate_article(
+                queued_article(
+                    status="draft saved",
+                    verification_preflight="no verification presented",
+                )
+            )
+        MODEL.validate_article(
+            queued_article(
+                status="draft saved",
+                verification_preflight="no verification presented",
+                exact_result="Draft saved in platform editor",
+                evidence_reference="ev-draft-001",
+            )
+        )
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "prior public_url"):
+            MODEL.validate_article(
+                article(
+                    status="removed",
+                    public_url="not applicable",
+                    outbound_href="not applicable",
+                    outbound_rel="not applicable",
+                    outbound_link_checked="not applicable",
+                )
+            )
+
+    def test_fingerprint_is_deterministic_and_does_not_return_body(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "article.json"
+            source.write_text(
+                json.dumps({"title": "Title", "body": "Secret body text", "target_url": "https://example.test/"}),
+                encoding="utf-8",
+            )
+            first = SHEETS.article_fingerprint(source)
+            second = SHEETS.article_fingerprint(source)
+        self.assertEqual(first, second)
+        self.assertRegex(first["content_fingerprint"], r"^sha256:[0-9a-f]{64}$")
+        self.assertNotIn("Secret body text", json.dumps(first))
+        self.assertFalse(first["body_persisted"])
 
     def test_unknown_outcome_requires_all_checks(self):
         value = submission(
@@ -510,6 +737,12 @@ class StoreTests(unittest.TestCase):
         SHEETS.upsert(store, "campaign", campaign())
         return store
 
+    def article_store(self):
+        store = MemoryStore()
+        SHEETS.upsert(store, "platform", article_platform())
+        SHEETS.upsert(store, "campaign", article_campaign())
+        return store
+
     def test_upsert_creates_then_increments_version(self):
         store = self.populated_store()
         first = SHEETS.upsert(store, "submission", queued_submission())
@@ -529,6 +762,106 @@ class StoreTests(unittest.TestCase):
         result = SHEETS.upsert(store, "submission", queued_submission())
         self.assertEqual(result["action"], "unchanged")
         self.assertEqual(result["row_version"], "1")
+
+    def test_legacy_campaign_exact_replay_is_unchanged(self):
+        store = MemoryStore()
+        SHEETS.upsert(store, "campaign", campaign())
+        result = SHEETS.upsert(store, "campaign", campaign())
+        self.assertEqual(result["action"], "unchanged")
+
+    def test_article_create_event_publish_and_version(self):
+        store = self.article_store()
+        created = SHEETS.upsert(store, "article", queued_article())
+        SHEETS.append_event(store, article_event())
+        published = SHEETS.upsert(store, "article", article(expected_row_version="1"))
+        self.assertEqual(created["action"], "created")
+        self.assertEqual(published["row_version"], "2")
+        self.assertEqual(store.tables["Articles"][0]["status"], "published")
+
+    def test_executed_article_requires_article_campaign_and_platform_types(self):
+        store = self.article_store()
+        SHEETS.upsert(store, "article", queued_article())
+        SHEETS.append_event(store, article_event())
+        store.tables["Campaigns"][0]["campaign_mode"] = "directory"
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "campaign mode"):
+            SHEETS.upsert(store, "article", article(expected_row_version="1"))
+
+        store.tables["Campaigns"][0]["campaign_mode"] = "article"
+        store.tables["Platforms"][0]["platform_type"] = "directory"
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "platform type"):
+            SHEETS.upsert(store, "article", article(expected_row_version="1"))
+
+    def test_article_event_must_use_matching_record_type(self):
+        store = self.article_store()
+        SHEETS.upsert(store, "article", queued_article())
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "unknown idempotency_key"):
+            SHEETS.append_event(store, article_event(record_type="submission"))
+
+    def test_cross_table_queue_and_idempotency_are_rejected(self):
+        store = self.populated_store()
+        SHEETS.upsert(store, "submission", queued_submission())
+        SHEETS.upsert(
+            store,
+            "platform",
+            article_platform(platform_type="mixed", platform_id="platform-blog-test"),
+        )
+        SHEETS.upsert(
+            store,
+            "campaign",
+            article_campaign(campaign_id="campaign-001", campaign_mode="mixed", expected_row_version="1"),
+        )
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "queue_id"):
+            SHEETS.upsert(store, "article", queued_article(campaign_id="campaign-001", queue_id="Q-001"))
+
+    def test_duplicate_article_fingerprint_is_rejected(self):
+        store = self.article_store()
+        SHEETS.upsert(store, "article", queued_article())
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "content_fingerprint"):
+            SHEETS.upsert(
+                store,
+                "article",
+                queued_article(
+                    article_id="article-002",
+                    queue_id="A-002",
+                    idempotency_key="blog.test|product-001|account-001|blog article|article-002",
+                ),
+            )
+
+    def test_duplicate_article_id_is_rejected_even_when_platform_changes(self):
+        store = self.article_store()
+        SHEETS.upsert(store, "article", queued_article())
+        store.tables["Platforms"].append(
+            MODEL.prepare_record(
+                "platform",
+                article_platform(
+                    platform_id="platform-second-blog",
+                    platform_domain="second-blog.test",
+                    canonical_submission_url="https://second-blog.test/editor",
+                ),
+            )
+        )
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "article_id"):
+            SHEETS.upsert(
+                store,
+                "article",
+                queued_article(
+                    platform_domain="second-blog.test",
+                    website="https://second-blog.test/editor",
+                    platform_id="platform-second-blog",
+                    idempotency_key=(
+                        "second-blog.test|product-001|account-001|blog article|article-001"
+                    ),
+                    content_fingerprint="sha256:" + "b" * 64,
+                ),
+            )
+
+    def test_article_history_filters_without_body(self):
+        store = self.article_store()
+        SHEETS.upsert(store, "article", queued_article())
+        result = SHEETS.article_history(store, "product-001", "blog.test")
+        self.assertEqual(len(result), 1)
+        self.assertNotIn("body", result[0])
+        self.assertEqual(SHEETS.article_history(store, "product-001", "other.test"), [])
 
     def test_changed_upsert_requires_current_version(self):
         store = self.populated_store()
@@ -684,6 +1017,40 @@ class StoreTests(unittest.TestCase):
         self.assertIn("event_id=evt-001", markdown)
         markdown_result = MARKDOWN_AUDIT.audit(markdown)
         self.assertTrue(markdown_result["valid"], markdown_result["errors"])
+
+    def test_mixed_audit_and_export_includes_article_metadata_not_body(self):
+        store = self.article_store()
+        SHEETS.upsert(store, "article", queued_article())
+        SHEETS.append_event(store, article_event())
+        SHEETS.upsert(store, "article", article(expected_row_version="1"))
+        result = SHEETS.workbook_audit(store, "campaign-article-001")
+        self.assertTrue(result["valid"], result["errors"])
+        self.assertEqual(result["total_articles"], 1)
+        markdown = MODEL.export_campaign_markdown(
+            store.tables["Campaigns"][0], [], store.tables["Events"], store.tables["Articles"]
+        )
+        self.assertIn("Article A-001", markdown)
+        self.assertNotIn("Secret body", markdown)
+
+    def test_audit_reports_duplicate_article_id(self):
+        store = self.article_store()
+        first = MODEL.prepare_record("article", queued_article())
+        second = dict(first)
+        second.update(
+            {
+                "platform_domain": "other-blog.test",
+                "website": "https://other-blog.test/editor",
+                "platform_id": "platform-other-blog",
+                "queue_id": "A-002",
+                "idempotency_key": (
+                    "other-blog.test|product-001|account-001|blog article|article-001"
+                ),
+                "content_fingerprint": "sha256:" + "b" * 64,
+            }
+        )
+        store.tables["Articles"] = [first, second]
+        result = SHEETS.workbook_audit(store, "campaign-article-001")
+        self.assertTrue(any("duplicate article_id" in item for item in result["errors"]))
 
     def test_executed_state_without_event_fails_audit(self):
         store = self.populated_store()

@@ -8,7 +8,7 @@ Run `uv run python scripts/sheets_record.py doctor`. If OAuth, workbook configur
 
 Record:
 
-- campaign ID and `SPD version: V1 Batch`;
+- campaign ID, `workflow_version: SPD V1 Batch`, and `campaign_mode: directory`;
 - product canonical ID and canonical URL;
 - source-list reference and authorization reference;
 - execution-shard size and shared policy version;
@@ -58,7 +58,7 @@ Within each shard:
 1. order account and email-verification work first;
 2. order short-lived verification tokens immediately before their forms;
 3. cap active tabs according to current runtime capacity;
-4. keep one queue cursor and the append-only `Events` worksheet;
+4. keep one queue cursor and the append-only `Events` worksheet; directory events use `record_type: submission`;
 5. isolate browser profiles when account identity or session ownership differs.
 6. keep each site bound to the selected backend and session alias until it reaches a recorded handoff or terminal state.
 
