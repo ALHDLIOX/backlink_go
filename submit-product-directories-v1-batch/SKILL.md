@@ -15,7 +15,7 @@ description: SPD V1 Batch. Process large, user-supplied sets of legitimate produ
 
 ## Load controls
 
-1. Read the verified product profile, brand rules, contact and credential aliases, approved assets, source list, batch authorization, and existing campaign state.
+1. Resolve the product package from `../products/<product-id>/` and read its verified product profile, brand rules, approved asset manifest, source list, batch authorization, and existing campaign state. Resolve real contact and credential values only from the project-local ignored `.backlink-go/private/product-aliases.json`; place only aliases in Sheets and logs. See [references/product-packages.md](references/product-packages.md).
 2. Read [references/workflow.md](references/workflow.md) before planning or browser work.
 3. Read [references/status-model.md](references/status-model.md) before writing or auditing records.
 4. Read [references/browser-control-routing.md](references/browser-control-routing.md) before any browser or app interaction. Run the Windows/macOS/Linux capability preflight and select the backend from the current environment; do not assume a specific browser, operating system, or Computer Use support.
@@ -82,6 +82,7 @@ Report totals by queue state, verification state, shard, and outcome. Measure qu
 
 ## Bundled resources
 
+- [references/product-packages.md](references/product-packages.md): project-local product packages and private alias resolution.
 - [references/workflow.md](references/workflow.md): sharding, verification queues, execution, and recovery.
 - [references/status-model.md](references/status-model.md): record schema and state invariants.
 - [references/sheets-recording.md](references/sheets-recording.md): direct Google API setup, fixed CLI, JSON payloads, dry runs, audit, and export.

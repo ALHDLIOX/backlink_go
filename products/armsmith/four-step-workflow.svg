@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+<defs><style>.title{font-family:Georgia,serif;fill:#f5efdf}.text{font-family:Arial,sans-serif;fill:#f5efdf}.muted{font-family:Arial,sans-serif;fill:#bfc5ce}.line{fill:none;stroke:#ddba75;stroke-width:5;stroke-linecap:round;stroke-linejoin:round}</style></defs>
+<rect width="1600" height="1000" fill="#101523"/>
+<text x="70" y="76" class="text" fill="#ddba75" font-size="23" letter-spacing="6">ARMSMITH</text>
+<text x="70" y="154" class="title" font-size="60">Your story. Your crest. Four simple steps.</text>
+<text x="70" y="207" class="muted" font-size="26">Choose the details. Let AI bring your design to life.</text>
+<g fill="#1b2534" stroke="#364153" stroke-width="2">
+<rect x="70" y="260" width="710" height="290" rx="22"/>
+<rect x="820" y="260" width="710" height="290" rx="22"/>
+<rect x="70" y="585" width="710" height="290" rx="22"/>
+<rect x="820" y="585" width="710" height="290" rx="22"/>
+</g>
+<g class="text" font-size="23" letter-spacing="3" opacity=".7">
+<text x="110" y="310">STEP 01</text><text x="860" y="310">STEP 02</text><text x="110" y="635">STEP 03</text><text x="860" y="635">STEP 04</text>
+</g>
+<g class="line" transform="translate(110 346)">
+<circle cx="64" cy="31" r="22"/><path d="M21 108V92c0-30 86-30 86 0v16M8 48a18 18 0 1 0 0-36M120 48a18 18 0 1 1 0-36M0 105V82q0-15 18-18M128 105V82q0-15-18-18"/>
+</g>
+<g class="line" transform="translate(860 346)">
+<path d="M64 3C-15 3-19 111 42 120c21 4 36-10 24-26-8-13 4-25 19-20 65 16 53-69-21-71Z"/>
+<circle cx="31" cy="48" r="7" fill="#c96b5e" stroke="none"/><circle cx="59" cy="26" r="7" fill="#ddba75" stroke="none"/><circle cx="91" cy="37" r="7" fill="#89a4bf" stroke="none"/><circle cx="25" cy="79" r="7" fill="#82a589" stroke="none"/>
+</g>
+<g class="line" transform="translate(110 671)">
+<path d="M14 7h102v57c0 27-25 47-51 65C39 111 14 91 14 64Z"/><path d="m65 30 9 21 24 2-18 16 6 24-21-13-21 13 6-24-18-16 24-2Z"/>
+</g>
+<g class="line" transform="translate(860 671)">
+<path d="M7 10h76v114H7ZM26 37h35M26 56h23M26 77h30M26 98h18"/><path d="m104 34 5 17 17 5-17 5-5 17-5-17-17-5 17-5ZM105 93l3 9 9 3-9 3-3 9-3-9-9-3 9-3Z"/>
+</g>
+<g class="title" font-size="43">
+<text x="280" y="376">Who is it for?</text><text x="1030" y="376">Choose the look</text>
+<text x="280" y="701">Pick your symbols</text><text x="1030" y="701">Make it yours</text>
+</g>
+<g class="muted" font-size="28">
+<text x="280" y="429">Family, wedding or fictional house.</text><text x="280" y="474">Add a name and motto.</text>
+<text x="1030" y="429">Choose an art style</text><text x="1030" y="474">and your color palette.</text>
+<text x="280" y="754">Choose a shield, main symbol,</text><text x="280" y="799">pattern and side ornaments.</text>
+<text x="1030" y="754">Add your story, choose quality</text><text x="1030" y="799">and generate your crest.</text>
+</g>
+<text x="70" y="941" class="muted" font-size="22">Original artwork · Not an official grant of arms or historical certification.</text>
+<text x="1530" y="941" class="text" font-size="23" text-anchor="end">coatofarmsmaker.net</text>
+</svg>

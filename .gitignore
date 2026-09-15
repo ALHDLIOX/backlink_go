@@ -20,6 +20,9 @@ token.json
 v1-sheets.json
 v1-sheets.lock
 
+# Project-local private runtime data (aliases may contain real email addresses)
+.backlink-go/private/
+
 # Executables
 *.swf
 *.air
