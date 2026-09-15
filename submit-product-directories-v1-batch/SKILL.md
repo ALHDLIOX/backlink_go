@@ -23,6 +23,8 @@ description: SPD V1 Batch. Process large, user-supplied sets of legitimate produ
 
 Google Sheets is the only writable V1 record store. Use the bundled CLI for authentication, initialization, validation, lookup, writes, audits, and Markdown exports. Do not call a Google Sheets connector, read its plugin documentation, hand-author spreadsheet requests, or maintain a second writable Markdown record. Stop on missing OAuth, unavailable API access, or schema drift.
 
+Workbook row-one labels are readable Chinese business names. JSON inputs and internal validation continue to use the documented snake_case field keys. Run `uv run python scripts/sheets_record.py format-workbook` to restore the standard labels, gridlines, frozen panes, widths, and header styling after manual formatting changes.
+
 Never invent product, company, founder, pricing, address, launch, ownership, contact, or legal facts. Keep optional unknowns blank and block required unknowns.
 
 ## Apply the batch legitimacy gate

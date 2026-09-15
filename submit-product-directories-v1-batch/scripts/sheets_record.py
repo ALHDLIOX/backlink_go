@@ -24,6 +24,7 @@ from record_model import (
     SCHEMA_VERSION,
     SUBMISSION_HEADERS,
     TABLE_HEADERS,
+    display_headers,
     RecordValidationError,
     audit_records,
     export_campaign_markdown,
@@ -189,6 +190,102 @@ def initialization_batch_requests(properties: dict[str, dict[str, Any]]) -> list
     return requests
 
 
+def readable_format_requests(properties: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    """Build an idempotent, readable workbook presentation."""
+    requests: list[dict[str, Any]] = []
+    for tab_name, headers in TABLE_HEADERS.items():
+        sheet_id = properties[tab_name]["sheetId"]
+        requests.extend(
+            [
+                {
+                    "updateSheetProperties": {
+                        "properties": {
+                            "sheetId": sheet_id,
+                            "gridProperties": {"hideGridlines": False, "frozenColumnCount": 1},
+                        },
+                        "fields": "gridProperties.hideGridlines,gridProperties.frozenColumnCount",
+                    }
+                },
+                {
+                    "repeatCell": {
+                        "range": {
+                            "sheetId": sheet_id,
+                            "startRowIndex": 0,
+                            "endRowIndex": 1,
+                            "startColumnIndex": 0,
+                            "endColumnIndex": len(headers),
+                        },
+                        "cell": {
+                            "userEnteredFormat": {
+                                "backgroundColor": {"red": 0.86, "green": 0.90, "blue": 0.95},
+                                "textFormat": {
+                                    "bold": True,
+                                    "foregroundColor": {"red": 0.12, "green": 0.16, "blue": 0.22},
+                                },
+                                "verticalAlignment": "MIDDLE",
+                                "wrapStrategy": "WRAP",
+                            }
+                        },
+                        "fields": "userEnteredFormat(backgroundColor,textFormat,verticalAlignment,wrapStrategy)",
+                    }
+                },
+                {
+                    "updateDimensionProperties": {
+                        "range": {"sheetId": sheet_id, "dimension": "ROWS", "startIndex": 0, "endIndex": 1},
+                        "properties": {"pixelSize": 48},
+                        "fields": "pixelSize",
+                    }
+                },
+            ]
+        )
+        for index, label in enumerate(display_headers(tab_name)):
+            width = min(240, max(120, len(label) * 18 + 36))
+            requests.append(
+                {
+                    "updateDimensionProperties": {
+                        "range": {
+                            "sheetId": sheet_id,
+                            "dimension": "COLUMNS",
+                            "startIndex": index,
+                            "endIndex": index + 1,
+                        },
+                        "properties": {"pixelSize": width},
+                        "fields": "pixelSize",
+                    }
+                }
+            )
+    return requests
+
+
+def format_workbook(store: "GoogleSheetsStore") -> dict[str, object]:
+    metadata = store.metadata()
+    versions = [
+        item.get("metadataValue") for item in metadata.get("developerMetadata", [])
+        if item.get("metadataKey") == METADATA_KEY
+    ]
+    properties = {
+        sheet["properties"]["title"]: sheet["properties"] for sheet in metadata.get("sheets", [])
+    }
+    if versions != [SCHEMA_VERSION] or set(properties) != set(TABLE_HEADERS):
+        raise RecordValidationError("workbook schema is missing or unsupported")
+    data = []
+    for tab_name, headers in TABLE_HEADERS.items():
+        data.append({
+            "range": f"'{tab_name}'!A1:{column_letter(len(headers))}1",
+            "values": [display_headers(tab_name)],
+        })
+    store.service.spreadsheets().values().batchUpdate(
+        spreadsheetId=store.spreadsheet_id,
+        body={"valueInputOption": "RAW", "data": data},
+    ).execute()
+    store.service.spreadsheets().batchUpdate(
+        spreadsheetId=store.spreadsheet_id,
+        body={"requests": readable_format_requests(properties)},
+    ).execute()
+    store.verify_schema()
+    return {"formatted": True, "worksheets": list(TABLE_HEADERS), "schema_valid": True}
+
+
 @contextmanager
 def writer_lock(config_dir: Path):
     ensure_private_dir(config_dir)
@@ -285,7 +382,7 @@ class GoogleSheetsStore:
         data = []
         for tab_name, headers in TABLE_HEADERS.items():
             last_column = column_letter(len(headers))
-            data.append({"range": f"'{tab_name}'!A1:{last_column}1", "values": [headers]})
+            data.append({"range": f"'{tab_name}'!A1:{last_column}1", "values": [display_headers(tab_name)]})
         (
             service.spreadsheets()
             .values()
@@ -297,7 +394,10 @@ class GoogleSheetsStore:
         )
         service.spreadsheets().batchUpdate(
             spreadsheetId=store.spreadsheet_id,
-            body={"requests": initialization_batch_requests(properties)},
+            body={
+                "requests": initialization_batch_requests(properties)
+                + readable_format_requests(properties)
+            },
         ).execute()
         return store, {
             "spreadsheet_id": store.spreadsheet_id,
@@ -340,7 +440,7 @@ class GoogleSheetsStore:
                 raise RecordValidationError(f"schema drift in {tab_name} grid properties")
             actual = self._read_values(f"'{tab_name}'!A1:{column_letter(len(headers))}1")
             actual_headers = actual[0] if actual else []
-            if actual_headers != headers:
+            if actual_headers != display_headers(tab_name):
                 raise RecordValidationError(f"schema drift in {tab_name} headers")
         return metadata
 
@@ -656,6 +756,7 @@ def parser() -> argparse.ArgumentParser:
     init_parser.add_argument("--dry-run", action="store_true")
 
     commands.add_parser("doctor")
+    commands.add_parser("format-workbook")
 
     for name in ("upsert-platform", "upsert-campaign", "upsert-submission", "append-event"):
         item = commands.add_parser(name)
@@ -710,6 +811,9 @@ def main(argv: list[str] | None = None) -> int:
                 "schema_version": SCHEMA_VERSION,
                 "worksheets": list(TABLE_HEADERS),
             }
+        elif args.command == "format-workbook":
+            with writer_lock(config_dir):
+                output = format_workbook(load_store(config_dir))
         elif args.command.startswith("upsert-") or args.command == "append-event":
             payload = read_json_file(args.input)
             if args.dry_run:

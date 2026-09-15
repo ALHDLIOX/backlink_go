@@ -212,6 +212,14 @@ class WorkbookSchemaTests(unittest.TestCase):
         self.assertEqual(sum("setDataValidation" in item for item in requests), len(MODEL.DROPDOWNS))
         self.assertEqual(requests[0]["createDeveloperMetadata"]["developerMetadata"]["metadataValue"], "1")
 
+    def test_readable_format_restores_gridlines_and_uses_readable_headers(self):
+        properties = {name: {"sheetId": index} for index, name in enumerate(MODEL.TABLE_HEADERS, start=1)}
+        requests = SHEETS.readable_format_requests(properties)
+        sheet_updates = [item["updateSheetProperties"] for item in requests if "updateSheetProperties" in item]
+        self.assertEqual(len(sheet_updates), 4)
+        self.assertTrue(all(not item["properties"]["gridProperties"]["hideGridlines"] for item in sheet_updates))
+        self.assertEqual(MODEL.display_headers("Platforms")[0], "平台编号")
+
     def test_create_and_verify_with_fake_google_service(self):
         class Request:
             def __init__(self, payload):
@@ -294,7 +302,20 @@ class WorkbookSchemaTests(unittest.TestCase):
         store, config = SHEETS.GoogleSheetsStore.create(service, "Backlink Operations")
         self.assertEqual(config["spreadsheet_id"], "sheet-001")
         self.assertEqual(service.resource.values_resource.batch_body["valueInputOption"], "RAW")
-        self.assertEqual(len(service.resource.format_requests), 1 + 8 + len(MODEL.DROPDOWNS))
+        for tab_name in MODEL.TABLE_HEADERS:
+            last_column = SHEETS.column_letter(len(MODEL.TABLE_HEADERS[tab_name]))
+            header_range = f"'{tab_name}'!A1:{last_column}1"
+            self.assertEqual(
+                service.resource.values_resource.headers[header_range],
+                [MODEL.display_headers(tab_name)],
+            )
+        self.assertEqual(
+            len(service.resource.format_requests),
+            1 + 8 + len(MODEL.DROPDOWNS) + len(SHEETS.readable_format_requests({
+                name: {"sheetId": index}
+                for index, name in enumerate(MODEL.TABLE_HEADERS, start=1)
+            })),
+        )
         store.verify_schema()
 
     def test_column_letters(self):

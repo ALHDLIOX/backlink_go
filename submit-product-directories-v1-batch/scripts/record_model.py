@@ -109,6 +109,40 @@ TABLE_HEADERS = {
     "Events": EVENT_HEADERS,
 }
 
+# Human-facing labels shown in row 1. The stable snake_case keys above remain
+# authoritative for JSON input, validation, exports, and record processing.
+HEADER_LABELS = {
+    "platform_id": "平台编号", "platform_domain": "平台域名", "website_name": "平台名称",
+    "canonical_submission_url": "标准提交入口", "route": "提交路线", "account_required": "是否需要账号",
+    "verification_pattern": "验证方式", "cost_model": "收费模式", "reciprocal_requirement": "互链要求",
+    "availability": "可用状态", "last_verified_at": "最后核验时间", "source": "信息来源",
+    "notes": "备注", "row_version": "行版本", "updated_at": "更新时间",
+    "campaign_id": "活动编号", "spd_version": "SPD 版本", "product_canonical_id": "产品编号",
+    "canonical_url": "产品官网", "source_list_reference": "来源清单编号", "source_urls": "来源网址",
+    "batch_authorization_reference": "批次授权编号", "execution_shard_size": "每批数量",
+    "maximum_active_tabs": "最大标签页数", "host_platform": "运行系统", "ui_environment": "界面环境",
+    "available_control_capabilities": "可用控制能力", "browser_routing_policy": "浏览器选择规则",
+    "credential_policy": "凭据规则", "evidence_policy": "证据规则", "duplicate_policy": "去重规则",
+    "ambiguous_outcome_policy": "结果不明处理规则", "ranking_manipulation_prohibited": "禁止操纵排名",
+    "created_at": "创建时间", "queue_id": "队列编号", "website": "提交页面",
+    "account_alias": "账号别名", "idempotency_key": "防重复键", "execution_shard": "执行批次",
+    "platform_capability_result": "平台操作能力", "requested_browser_constraint": "指定浏览器要求",
+    "selected_browser_surface": "实际浏览器界面", "execution_backend_session_alias": "执行会话别名",
+    "backend_selection_reason": "选择执行方式的原因", "legitimacy_gate": "合规性检查",
+    "authorization_reference": "授权编号", "status": "提交状态", "verification_preflight": "验证预检",
+    "fields_entered": "已填写字段", "fields_omitted": "未填写字段", "agreements_subscriptions": "协议与订阅",
+    "submit_timestamp": "提交时间", "exact_result": "准确结果", "evidence_reference": "证据编号",
+    "public_listing_url": "公开页面网址", "backend_checked": "后台检查", "mailbox_checked": "邮箱检查",
+    "public_page_checked": "公开页面检查", "last_checked": "最后检查时间", "follow_up": "后续处理",
+    "event_id": "事件编号", "timestamp": "事件时间", "action": "操作", "result": "操作结果",
+    "actor_alias": "操作者别名",
+}
+
+
+def display_headers(tab_name: str) -> list[str]:
+    """Return readable row-1 labels while preserving field order."""
+    return [HEADER_LABELS[header] for header in TABLE_HEADERS[tab_name]]
+
 DROPDOWNS = {
     ("Submissions", "status"): sorted(ALLOWED_STATUSES),
     ("Submissions", "verification_preflight"): sorted(ALLOWED_VERIFICATION),
