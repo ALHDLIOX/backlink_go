@@ -16,6 +16,8 @@ Do not store titles, content bodies, media or Board/channel details, AI labels, 
 
 The idempotency key is exactly `platform_domain|product_canonical_id|account_alias|route|placement_id`. A published result requires a public URL, actual backlink URL, anchor text, exact result, verification summary, action time, last-check time, and evidence. For a visual/link card without textual linked words, use `not applicable — image or link card`; do not invent an anchor.
 
+`platform_domain` is a bare hostname. The canonical platform entry and Placement operation page must use that hostname (treating `www` as equivalent) or one of its subdomains. A legacy migration never substitutes the campaign target URL for an observed backlink. If an old published row lacks an observed outbound URL, migrate it as `outcome unknown` with `not checked — no public backlink verified` and require public-page revalidation.
+
 Statuses are: `not attempted`, `in progress`, `draft saved`, `submitted`, `submitted for review`, `scheduled`, `awaiting approval`, `awaiting email verification`, `published`, `outcome unknown`, blocked states, `rejected`, `removed`, `unavailable`, `paid-only`, `ineligible`, `duplicate — no action`, and `terminated by user`.
 
 ## Events and audit

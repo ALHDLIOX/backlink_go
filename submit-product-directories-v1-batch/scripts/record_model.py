@@ -27,6 +27,7 @@ TRACKING_KEYS = {"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_co
                  "gclid", "fbclid", "msclkid", "ref", "referrer"}
 SENSITIVE_QUERY_KEYS = {"token", "key", "api_key", "apikey", "code", "state", "session",
                         "auth", "password", "otp", "signature", "sig"}
+UNVERIFIED_BACKLINK = "not checked — no public backlink verified"
 
 PLATFORM_HEADERS = ["website_name", "platform_domain", "canonical_submission_url", "availability",
                     "cost_model", "account_required", "verification_pattern", "reciprocal_requirement",
@@ -154,6 +155,40 @@ def normalize_url(value: str) -> str:
     if path != "/": path = path.rstrip("/")
     return urlunsplit((split.scheme.lower(), split.netloc.lower(), path, urlencode(query), ""))
 
+def normalize_platform_domain(value: object) -> str:
+    raw = str(value or "").strip().lower().rstrip(".")
+    if not raw or "://" in raw or any(character in raw for character in "/?#@"):
+        raise RecordValidationError(f"platform_domain must be a hostname: {raw}")
+    try:
+        hostname = raw.encode("idna").decode("ascii")
+    except UnicodeError as exc:
+        raise RecordValidationError(f"platform_domain is invalid: {raw}") from exc
+    if hostname.startswith("www."):
+        hostname = hostname[4:]
+    if not hostname or any(not label or not re.fullmatch(r"[a-z0-9-]+", label) or label.startswith("-") or label.endswith("-")
+                           for label in hostname.split(".")):
+        raise RecordValidationError(f"platform_domain is invalid: {raw}")
+    return hostname
+
+def url_matches_platform_domain(url: object, platform_domain: object) -> bool:
+    normalized_url = normalize_url(str(url))
+    hostname = str(urlsplit(normalized_url).hostname or "").lower().rstrip(".")
+    if hostname.startswith("www."):
+        hostname = hostname[4:]
+    claimed = normalize_platform_domain(platform_domain)
+    return hostname == claimed or hostname.endswith(f".{claimed}")
+
+def platform_domains_match(left: object, right: object) -> bool:
+    try:
+        return normalize_platform_domain(left) == normalize_platform_domain(right)
+    except RecordValidationError:
+        return False
+
+def require_url_matches_platform_domain(url: object, platform_domain: object, field: str) -> None:
+    if not url_matches_platform_domain(url, platform_domain):
+        hostname = urlsplit(str(url)).hostname or str(url)
+        raise RecordValidationError(f"{field} hostname {hostname} does not match platform_domain {platform_domain}")
+
 def compact_timestamp(value: object) -> str:
     raw = str(value or "").strip()
     if not raw or raw.lower() in {"not submitted", "not published", "unknown"}: return raw
@@ -167,7 +202,7 @@ def compact_record_timestamps(record: dict[str, object]) -> dict[str, str]:
     return result
 
 def _empty(v: object) -> bool: return not str(v or "").strip()
-def _meaningful(v: object) -> bool: return str(v or "").strip().lower() not in {"", "not applicable", "not checked", "unknown", "none"}
+def _meaningful(v: object) -> bool: return str(v or "").strip().lower() not in {"", "not applicable", "not checked", "unknown", "none", UNVERIFIED_BACKLINK}
 def _require(record: dict[str, object], fields: list[str], kind: str) -> None:
     missing = [f for f in fields if _empty(record.get(f))]
     if missing: raise RecordValidationError(f"{kind} missing required fields: {', '.join(missing)}")
@@ -196,7 +231,7 @@ def computed_idempotency_key(record: dict[str, object]) -> str:
     return "|".join(str(record.get(k, "")).strip() for k in ("platform_domain", "product_canonical_id", "account_alias", "route", "placement_id"))
 
 def validate_platform(r: dict[str, object]) -> None:
-    _require(r, [h for h in PLATFORM_HEADERS if h not in {"row_version", "source", "notes"}], "platform"); validate_privacy(r); normalize_url(str(r["canonical_submission_url"])); _assert_time(r["last_verified_at"], "last_verified_at")
+    _require(r, [h for h in PLATFORM_HEADERS if h not in {"row_version", "source", "notes"}], "platform"); validate_privacy(r); require_url_matches_platform_domain(r["canonical_submission_url"], r["platform_domain"], "canonical_submission_url"); _assert_time(r["last_verified_at"], "last_verified_at")
     if r["availability"] not in {"available", "unavailable", "unknown"}: raise RecordValidationError("invalid availability")
     if r["cost_model"] not in ALLOWED_COST_MODELS: raise RecordValidationError("invalid cost_model")
     if r["account_required"] not in {"yes", "no", "unknown"}: raise RecordValidationError("invalid account_required")
@@ -231,7 +266,7 @@ def validate_placement_state(r: dict[str, object]) -> None:
 
 def validate_placement(r: dict[str, object]) -> None:
     _require(r, [h for h in PLACEMENT_HEADERS if h != "row_version"], "placement"); validate_privacy(r)
-    normalize_url(str(r["website"]))
+    require_url_matches_platform_domain(r["website"], r["platform_domain"], "website")
     for f in ("public_url", "backlink_url"):
         if _meaningful(r.get(f)): normalize_url(str(r[f]))
     expected = computed_idempotency_key(r)
@@ -277,20 +312,31 @@ def _verification_summary(item: dict[str, object]) -> str:
 def migrate_v6_records(source: dict[str, list[dict[str, str]]]) -> dict[str, list[dict[str, str]]]:
     campaigns = [{h: str(i.get(h, "")) for h in CAMPAIGN_HEADERS} for i in source.get("Campaigns", [])]
     platforms = [{h: str(i.get(h, "")) for h in PLATFORM_HEADERS} for i in source.get("Platforms", [])]
-    urls = {str(i.get("campaign_id", "")): str(i.get("canonical_url", "")) for i in campaigns}
     placements: list[dict[str, str]] = []; key_map: dict[str, str] = {}
     def add(item: dict[str, str], kind: str) -> None:
         id_field = {"submission": "queue_id", "article": "article_id", "social": "social_post_id"}[kind]
         identity = str(item.get(id_field, "")).strip() or str(item.get("queue_id", "")).strip()
         placement_id = identity if kind != "submission" else f"submission-{item.get('campaign_id', '')}-{identity}"
         public = str(item.get("public_listing_url" if kind == "submission" else "public_url", "")).strip() or "not applicable"
-        backlink = str(item.get("outbound_href", "")).strip() or str(item.get("target_url", "")).strip() or urls.get(str(item.get("campaign_id", "")), "not applicable")
+        observed_backlink = str(item.get("outbound_href", "")).strip()
+        backlink = observed_backlink or UNVERIFIED_BACKLINK
         anchor = str(item.get("anchor_text", "")).strip() or ("not applicable — image or link card" if kind == "social" else "not checked — no public backlink verified")
         action = str(item.get("submit_timestamp" if kind == "submission" else "published_at", "")).strip() or ("unknown" if str(item.get("status")) == "published" else "not submitted")
+        status = _status_from_v6(item.get("status", ""))
+        verification = _verification_summary(item)
+        exact_result = str(item.get("exact_result", "")).strip()
+        follow_up = str(item.get("follow_up", "")).strip()
+        if not observed_backlink:
+            migration_note = "legacy migration: public backlink not verified"
+            verification = f"{verification}; {migration_note}" if _meaningful(verification) else migration_note
+            if status == "published":
+                status = "outcome unknown"
+                exact_result = f"{exact_result}; {migration_note}" if _meaningful(exact_result) else migration_note
+                follow_up = f"{follow_up}; revalidate public backlink" if _meaningful(follow_up) else "revalidate public backlink"
         r = {"platform_domain": str(item.get("platform_domain", "")), "website": str(item.get("website", "")),
-             "status": _status_from_v6(item.get("status", "")), "public_url": public, "backlink_url": backlink,
-             "anchor_text": anchor, "exact_result": str(item.get("exact_result", "")), "follow_up": str(item.get("follow_up", "")),
-             "verification": _verification_summary(item), "action_at": action, "last_checked": str(item.get("last_checked", "")),
+             "status": status, "public_url": public, "backlink_url": backlink,
+             "anchor_text": anchor, "exact_result": exact_result, "follow_up": follow_up,
+             "verification": verification, "action_at": action, "last_checked": str(item.get("last_checked", "")),
              "placement_id": placement_id, "queue_id": str(item.get("queue_id", "")),
              "product_canonical_id": str(item.get("product_canonical_id", "")), "campaign_id": str(item.get("campaign_id", "")),
              "platform_id": str(item.get("platform_id", "")), "route": str(item.get("route", "")),
@@ -319,7 +365,7 @@ def audit_records(*, campaigns: list[dict[str, object]], placements: list[dict[s
                   platforms: list[dict[str, object]], campaign_id: str | None = None, **_: object) -> dict[str, object]:
     errors: list[str] = []; selected_campaigns = [c for c in campaigns if not campaign_id or c.get("campaign_id") == campaign_id]
     selected = [p for p in placements if not campaign_id or p.get("campaign_id") == campaign_id]
-    keys = {str(p.get("idempotency_key", "")) for p in selected}; selected_events = [e for e in events if str(e.get("idempotency_key", "")) in keys]
+    selected_events = [e for e in events if not campaign_id or e.get("campaign_id") == campaign_id]
     if campaign_id and not selected_campaigns: errors.append(f"campaign not found: {campaign_id}")
     for name, items, key in (("campaign_id", campaigns, "campaign_id"), ("platform_id", platforms, "platform_id"), ("placement_id", placements, "placement_id"), ("event_id", events, "event_id")):
         counts = Counter(str(i.get(key, "")) for i in items); errors.extend(f"duplicate {name}: {v}" for v, c in counts.items() if v and c > 1)
@@ -334,7 +380,7 @@ def audit_records(*, campaigns: list[dict[str, object]], placements: list[dict[s
         elif str(item.get("product_canonical_id", "")) != str(cmap[pair[0]].get("product_canonical_id", "")): errors.append(f"{label}: product_canonical_id does not match campaign")
         pid = str(item.get("platform_id", ""))
         if pid not in pmap: errors.append(f"{label}: unknown platform_id")
-        elif str(item.get("platform_domain", "")).lower() != str(pmap[pid].get("platform_domain", "")).lower(): errors.append(f"{label}: platform_domain does not match platform")
+        elif not platform_domains_match(item.get("platform_domain"), pmap[pid].get("platform_domain")): errors.append(f"{label}: platform_domain does not match platform")
         try: validate_placement(item)
         except RecordValidationError as exc: errors.append(f"{label}: {exc}")
         status_counts[str(item.get("status", "missing"))] += 1

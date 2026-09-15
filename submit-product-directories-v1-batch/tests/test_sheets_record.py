@@ -130,6 +130,45 @@ class ValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(MODEL.RecordValidationError, "sensitive query"):
             MODEL.validate_placement(placement(website="https://example.test/create?token=secret"))
 
+    def test_operation_urls_must_belong_to_claimed_platform(self):
+        MODEL.validate_platform(platform(
+            platform_domain="www.example.test",
+            canonical_submission_url="https://submit.example.test/create",
+        ))
+        MODEL.validate_placement(placement(website="https://www.example.test/create"))
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "canonical_submission_url hostname"):
+            MODEL.validate_platform(platform(canonical_submission_url="https://unrelated.test/create"))
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "website hostname"):
+            MODEL.validate_placement(placement(website="https://example.test.evil.invalid/create"))
+
+    def test_platform_domain_must_be_a_bare_hostname(self):
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "must be a hostname"):
+            MODEL.validate_platform(platform(platform_domain="https://example.test"))
+
+    def test_v6_directory_migration_never_infers_actual_backlink(self):
+        old_campaign = {**campaign(), "campaign_mode": "directory", "row_version": "1"}
+        old_platform = {**platform(), "platform_type": "directory", "row_version": "1"}
+        submission = {
+            "platform_domain": "example.test", "website": "https://example.test/create",
+            "status": "published", "exact_result": "listing visible", "follow_up": "none",
+            "public_listing_url": "https://example.test/item/1", "verification_preflight": "not checked",
+            "submit_timestamp": NOW, "last_checked": NOW, "queue_id": "Q-1",
+            "product_canonical_id": "product-1", "campaign_id": "campaign-1",
+            "platform_id": "platform-test", "route": "create", "account_alias": "account-1",
+            "idempotency_key": "old-submission-key", "authorization_reference": "auth-1",
+            "evidence_reference": "evidence-1", "execution_method": "browser",
+            "execution_notes": "legacy row", "row_version": "2",
+        }
+        source = {"Platforms": [old_platform], "Campaigns": [old_campaign], "Submissions": [submission],
+            "Articles": [], "SocialPosts": [], "Events": []}
+        row = MODEL.migrate_v6_records(source)["Placements"][0]
+        self.assertEqual(row["backlink_url"], MODEL.UNVERIFIED_BACKLINK)
+        self.assertNotEqual(row["backlink_url"], old_campaign["canonical_url"])
+        self.assertEqual(row["status"], "outcome unknown")
+        self.assertIn("public backlink not verified", row["verification"])
+        self.assertEqual(row["follow_up"], "revalidate public backlink")
+        MODEL.validate_placement(row)
+
     def test_v6_three_records_merge_and_event_keys_follow(self):
         old_campaign = {**campaign(), "campaign_mode": "mixed", "row_version": "1"}
         old_platform = {**platform(), "platform_type": "mixed", "row_version": "1"}
@@ -180,6 +219,17 @@ class StoreTests(unittest.TestCase):
         self.assertTrue(result["valid"]); self.assertEqual(result["total_placements"], 1)
         text = MODEL.export_campaign_markdown(store.tables["Campaigns"][0], [queued], [])
         self.assertIn("锚文本", text); self.assertNotIn("Content fingerprint", text)
+
+    def test_audit_reports_orphan_events_before_key_filtering(self):
+        store = self.seeded()
+        store.tables["Events"].append(MODEL.prepare_record("event", event(
+            event_id="event-orphan",
+            idempotency_key="example.test|product-1|account-1|create|missing-placement",
+        )))
+        for campaign_id in (None, "campaign-1"):
+            result = SHEETS.workbook_audit(store, campaign_id)
+            self.assertFalse(result["valid"])
+            self.assertTrue(any("event event-orphan: unknown idempotency_key" in error for error in result["errors"]))
 
 class CliTests(unittest.TestCase):
     def test_dry_run_upsert_placement_never_loads_google(self):

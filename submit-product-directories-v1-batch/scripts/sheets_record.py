@@ -41,6 +41,7 @@ from record_model import (
     audit_records,
     export_campaign_markdown,
     normalize_campaign_input,
+    platform_domains_match,
     prepare_record,
     row_values,
     rows_to_records,
@@ -982,9 +983,9 @@ def upsert(store: GoogleSheetsStore, kind: str, payload: dict[str, Any]) -> dict
             raise RecordValidationError("placement references an unknown platform_id")
         if str(campaign[1].get("product_canonical_id")) != str(payload.get("product_canonical_id")):
             raise RecordValidationError("placement product_canonical_id does not match campaign")
-        if str(platform[1].get("platform_domain", "")).lower() != str(
-            payload.get("platform_domain", "")
-        ).lower():
+        if not platform_domains_match(
+            platform[1].get("platform_domain", ""), payload.get("platform_domain", "")
+        ):
             raise RecordValidationError("placement platform_domain does not match platform")
         if found and found[1].get("campaign_id") != str(payload.get("campaign_id")):
             raise RecordValidationError("idempotency_key already belongs to another campaign")
