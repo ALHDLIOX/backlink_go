@@ -46,7 +46,8 @@ CONFIG_ENV = "BACKLINK_GO_CONFIG_DIR"
 
 
 def default_config_dir() -> Path:
-    return Path(os.environ.get(CONFIG_ENV, Path.home() / ".config" / "backlink-go"))
+    repository_root = Path(__file__).resolve().parents[2]
+    return Path(os.environ.get(CONFIG_ENV, repository_root / ".backlink-go" / "runtime"))
 
 
 def ensure_private_dir(config_dir: Path) -> None:

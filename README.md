@@ -142,7 +142,7 @@ uv run python submit-product-directories-v1-batch/scripts/sheets_record.py init 
 uv run python submit-product-directories-v1-batch/scripts/sheets_record.py doctor
 ```
 
-OAuth 文件和工作簿配置保存在 `~/.config/backlink-go/`，不会写入仓库。
+OAuth 文件和工作簿配置保存在当前项目的 `.backlink-go/runtime/`，该目录由 Git 忽略。
 
 ### 按顺序精细提交示例
 

@@ -22,6 +22,7 @@ v1-sheets.lock
 
 # Project-local private runtime data (aliases may contain real email addresses)
 .backlink-go/private/
+.backlink-go/runtime/
 
 # Executables
 *.swf

@@ -22,7 +22,7 @@ uv run python scripts/sheets_record.py format-workbook
 
 The visible header labels are presentation text. JSON payloads continue to use the snake_case keys shown below.
 
-Authentication and workbook configuration are stored under `~/.config/backlink-go/` with private file permissions. `init` creates one empty workbook with `Platforms`, `Campaigns`, `Submissions`, and `Events`; it does not import `Free-backlink-list.md`.
+Authentication and workbook configuration are stored inside the repository checkout under `.backlink-go/runtime/` with private file permissions. The directory is ignored by Git. `BACKLINK_GO_CONFIG_DIR` or `--config-dir` may override this location. `init` creates one empty workbook with `Platforms`, `Campaigns`, `Submissions`, and `Events`; it does not import `Free-backlink-list.md`.
 
 If authentication, configuration, schema, or API access fails, stop and report the exact non-secret error. Do not fall back to connector writes or a local Markdown source of truth.
 
