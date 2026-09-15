@@ -152,6 +152,15 @@ class ValidationTests(unittest.TestCase):
             canonical_submission_url="https://submit.example.test/create",
         ))
         MODEL.validate_placement(placement(website="https://www.example.test/create"))
+        MODEL.validate_platform(platform(
+            platform_domain="bücher.example",
+            canonical_submission_url="https://submit.bücher.example/create",
+        ))
+        MODEL.validate_placement(placement(
+            platform_domain="xn--bcher-kva.example",
+            website="https://bücher.example/create",
+            idempotency_key="xn--bcher-kva.example|product-1|account-1|create|placement-1",
+        ))
         with self.assertRaisesRegex(MODEL.RecordValidationError, "canonical_submission_url hostname"):
             MODEL.validate_platform(platform(canonical_submission_url="https://unrelated.test/create"))
         with self.assertRaisesRegex(MODEL.RecordValidationError, "website hostname"):

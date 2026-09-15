@@ -236,9 +236,7 @@ def normalize_platform_domain(value: object) -> str:
 
 def url_matches_platform_domain(url: object, platform_domain: object) -> bool:
     normalized_url = normalize_url(str(url))
-    hostname = str(urlsplit(normalized_url).hostname or "").lower().rstrip(".")
-    if hostname.startswith("www."):
-        hostname = hostname[4:]
+    hostname = normalize_platform_domain(urlsplit(normalized_url).hostname or "")
     claimed = normalize_platform_domain(platform_domain)
     return hostname == claimed or hostname.endswith(f".{claimed}")
 
