@@ -8,7 +8,7 @@ Run `uv run python scripts/sheets_record.py doctor`. If OAuth, workbook configur
 
 Record:
 
-- campaign ID, `workflow_version: SPD V1 Batch`, and `campaign_mode: directory`;
+- campaign ID and `workflow_version: SPD V1 Batch`;
 - product canonical ID and canonical URL;
 - source-list reference and authorization reference;
 - execution-shard size and shared policy version;
@@ -30,7 +30,7 @@ For every source URL:
 
 Assign a stable queue ID. Never renumber existing entries after execution begins.
 
-After live preflight, use `upsert-platform` to preserve reusable platform facts. Platform rows may be reused across products, but each product receives its own submission row and idempotency key.
+After live preflight, use `upsert-platform` to preserve reusable platform facts. Platform rows may be reused across products, but each product receives its own Placement row and idempotency key.
 
 ## 3. Run fast triage
 
@@ -58,7 +58,7 @@ Within each shard:
 1. order account and email-verification work first;
 2. order short-lived verification tokens immediately before their forms;
 3. cap active tabs according to current runtime capacity;
-4. keep one queue cursor and the append-only `Events` worksheet; directory events use `record_type: submission`;
+4. keep one queue cursor and the append-only `Events` worksheet; every event links to one unified Placement;
 5. isolate browser profiles when account identity or session ownership differs.
 6. keep each site bound to the selected backend and session alias until it reaches a recorded handoff or terminal state.
 
@@ -108,7 +108,7 @@ Never retry an ambiguous final action. Append the ambiguous event, mark `submiss
 - Re-inspect after navigation, modal changes, user interaction, or page reloads.
 - Reacquire accessibility elements instead of using stale identifiers.
 - Retry transient loading once in the current tab and once in a fresh tab.
-- Resume from the first queue item without a terminal or pending state in `Submissions`.
+- Resume from the first queue item without a terminal or pending state in `Placements`.
 - Never reopen completed idempotency keys for final action.
 - Preserve exact error text and distinguish site failure from local browser failure.
 

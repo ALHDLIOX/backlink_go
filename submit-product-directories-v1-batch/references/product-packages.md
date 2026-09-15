@@ -19,4 +19,4 @@ Product packages contain public or repository-safe facts only. Do not commit raw
 
 Real values behind account and contact aliases live inside this repository checkout at `.backlink-go/private/product-aliases.json`. The directory is ignored by Git and each private file must use mode `0600`. The file maps stable aliases to real values used during authorized browser work. Never copy a resolved value into Google Sheets, events, evidence identifiers, command output, or a committed file.
 
-Google Sheets remains the source of truth for campaigns, platforms, submissions, and events. Product packages are reusable inputs, not a second submission tracker. Historical Markdown records may remain in their source project for reference; do not migrate them into the V1 workbook automatically.
+Google Sheets remains the source of truth for campaigns, platforms, placements, and events. Product packages are reusable inputs, not a second placement tracker. Historical Markdown records may remain in their source project for reference; do not migrate them into the V1 workbook automatically.

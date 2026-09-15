@@ -46,7 +46,7 @@
 - 在同一浏览器配置中逐站提交，每完成一个站点就先写入结果，再移动队列游标；
 - 记录草稿、等待验证、等待审核、已发布、结果未知、失败和排除项，方便中断后继续。
 
-V1 使用自带的 Python CLI 通过 Google Sheets API 直接维护一个 `Backlink Operations` 工作簿，包含 `Platforms`、`Campaigns`、`Submissions`、`Articles` 和 `Events`。Google Sheets 是唯一写入源；Markdown 只作为按需导出的备份。Agent 不需要读取 Google Sheets 插件文档或手工拼接表格请求。
+V1 使用自带的 Python CLI 通过 Google Sheets API 直接维护一个 `Backlink Operations` 工作簿，包含 `Platforms`、`Campaigns`、统一的 `Placements` 和追加式 `Events`。目录、文章和社交结果使用同一张记录表，重点保存实际外链与锚文本。Google Sheets 是唯一写入源；Markdown 只作为按需导出。
 
 “批量”指的是批量整理、分片和推进队列，不代表无节制并发，更不代表绕过网站限制。V1 仍然要求真实信息、合法渠道、授权提交和逐项留证。
 
@@ -88,7 +88,7 @@ V1 使用自带的 Python CLI 通过 Google Sheets API 直接维护一个 `Backl
 
 ### 目录与长文平台统一执行
 
-`$backlink-operations-v1` 会先判断目标是产品目录还是长文平台。目录继续调用 SPD V1；Blogger、Dev.to、Hashnode、Substack、Medium 以及通过预检的其他长文编辑器，会调用通用 writer 的 `ephemeral-publish` 模式。正文只在执行期间存在，不写入仓库或 Sheets；工作簿只保存标题、内容指纹、状态、公开网址和外链核验结果。Pinterest Pin、X/LinkedIn 短帖、论坛回复和评论首版不处理。
+`$backlink-operations-v1` 会判断目标是产品目录、长文平台还是社交发布面。三条路线各自执行，但统一写入 `Placements`；长期记录只保留状态、公开页面、实际外链、锚文本、结果、核验与证据，不维护正文、图片、标题或平台专用字段。
 
 批次授权只有明确列出平台、账号别名、有效期以及 `write`、`draft`、`publish`、`upload` 动作时，才允许执行对应动作。已发布文章必须重新打开公开页面并核验实际锚文本、`href`、UTM 和 `rel`。
 

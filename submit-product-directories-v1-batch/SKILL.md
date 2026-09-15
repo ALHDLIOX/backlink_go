@@ -25,7 +25,7 @@ Google Sheets is the only writable V1 record store. Use the bundled CLI for auth
 
 Workbook row-one labels are readable Chinese business names, with audit-critical columns first and system fields last. Fixed-choice cells use low-saturation status colors; other cells use a light neutral background. JSON inputs and internal validation continue to use the documented snake_case field keys. Run `uv run python scripts/sheets_record.py format-workbook` to restore labels, gridlines, frozen panes, widths, and styling after manual formatting changes.
 
-The current workbook schema is version 6. If `doctor` reports a configured schema-v4 or schema-v5 workbook, run `uv run python scripts/sheets_record.py migrate-schema-v6` once. The migration preserves existing rows, classifies legacy directory records, creates the shared `Articles` and/or `SocialPosts` worksheets as needed, and keeps business timestamps at local `YYYY-MM-DD HH:MM` precision.
+The current workbook schema is version 7. If `doctor` reports schema 4, 5, or 6, run `uv run python scripts/sheets_record.py migrate-schema-v7` once. The migration combines directory, article, and social results into `Placements`, removes retired content-specific columns, preserves operational evidence, and keeps business timestamps at local `YYYY-MM-DD HH:MM` precision.
 
 Never invent product, company, founder, pricing, address, launch, ownership, contact, or legal facts. Keep optional unknowns blank and block required unknowns.
 
@@ -38,7 +38,7 @@ Use only the exact brand, product name, or naked canonical URL as public link te
 ## Build the queue
 
 1. Normalize hostnames and submission routes. Strip tracking parameters from the record while preserving required route parameters in controlled evidence.
-2. Derive an idempotency key from platform domain, product canonical ID, account alias, and route.
+2. Assign a stable placement ID and derive the idempotency key from platform domain, product canonical ID, account alias, route, and placement ID.
 3. Deduplicate before opening the browser. Never execute an idempotency key that is already submitted, awaiting approval, published, or outcome unknown.
 4. Assign stable queue IDs and execution shards. Treat shard size and current browser capacity as operational settings, not SEO safety thresholds.
 5. Classify every site into `direct form`, `account required`, `manual verification`, `email verification`, `paid/reciprocal`, `unavailable`, `ineligible`, or `unknown`.
@@ -59,7 +59,7 @@ Use only the exact brand, product name, or naked canonical URL as public link te
 2. Reuse approved field variants by length and category, while preserving exact public brand spelling and truthful meaning.
 3. Keep newsletters and optional promotions off unless authorized.
 4. Review plan, cost, URL, identity, category, agreements, uploads, and verification immediately before submission.
-5. Submit sequentially within a browser profile. Append the action event and upsert the submission result with `scripts/sheets_record.py` before advancing the queue cursor.
+5. Submit sequentially within a browser profile. Append the action event and upsert the result with `upsert-placement` before advancing the queue cursor.
 6. Never retry an ambiguous final action. Check the account backend, mailbox, and public page first.
 7. Save drafts, transient failures, manual actions, and terminal outcomes as distinct states so the campaign can resume without replaying completed work.
 
@@ -89,7 +89,5 @@ Report totals by queue state, verification state, shard, and outcome. Measure qu
 - [references/status-model.md](references/status-model.md): record schema and state invariants.
 - [references/sheets-recording.md](references/sheets-recording.md): direct Google API setup, fixed CLI, JSON payloads, dry runs, audit, and export.
 - [references/browser-control-routing.md](references/browser-control-routing.md): backend-neutral browser selection, interaction, confirmation, recovery, and evidence rules.
-- [assets/submission-record-template.md](assets/submission-record-template.md): read-only Markdown export shape.
 - `scripts/sheets_record.py`: authoritative Google Sheets record CLI.
 - `scripts/record_model.py`: shared schema, privacy, state, audit, and export rules.
-- `scripts/audit_submission_record.py`: compatibility auditor for exported or legacy Markdown.

@@ -1,5 +1,4 @@
-"""Schema and validation rules for SPD V1 Batch records."""
-
+"""Schema and validation rules for Backlink Operations V1 records."""
 from __future__ import annotations
 
 import json
@@ -8,1254 +7,358 @@ from collections import Counter
 from datetime import datetime
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-
-SCHEMA_VERSION = "6"
-PREVIOUS_SCHEMA_VERSION = "5"
+SCHEMA_VERSION = "7"
+PREVIOUS_SCHEMA_VERSION = "6"
 LEGACY_SCHEMA_VERSION = "4"
-POLICY_VERSION = "spd-v1-policy-2"
+POLICY_VERSION = "backlink-operations-v1-policy-3"
 
 ALLOWED_STATUSES = {
-    "not attempted",
-    "form in progress",
-    "draft saved",
-    "submitted",
-    "submission outcome unknown",
-    "awaiting approval",
-    "awaiting email verification",
-    "published",
-    "blocked — manual verification",
-    "blocked — missing verified data",
-    "blocked — account or email policy",
-    "unavailable",
-    "paid-only",
-    "ineligible",
-    "duplicate — no action",
-    "terminated by user",
+    "not attempted", "in progress", "draft saved", "submitted", "submitted for review",
+    "scheduled", "awaiting approval", "awaiting email verification", "published",
+    "outcome unknown", "blocked — manual verification", "blocked — missing verified data",
+    "blocked — account or email policy", "rejected", "removed", "unavailable", "paid-only",
+    "ineligible", "duplicate — no action", "terminated by user",
 }
-
-ALLOWED_VERIFICATION = {
-    "not checked",
-    "automatic verification passed",
-    "awaiting manual verification",
-    "manual verification completed",
-    "verification unavailable before form",
-    "verification expired/reset",
-    "no verification presented",
-    "deferred by user",
-}
-
-ARTICLE_STATUSES = {
-    "not attempted",
-    "writing",
-    "editor in progress",
-    "draft saved",
-    "submitted for review",
-    "published",
-    "publication outcome unknown",
-    "awaiting email verification",
-    "blocked — manual verification",
-    "blocked — missing verified data",
-    "blocked — account or email policy",
-    "rejected",
-    "removed",
-    "unavailable",
-    "paid-only",
-    "ineligible",
-    "duplicate — no action",
-    "terminated by user",
-}
-
-SOCIAL_STATUSES = {
-    "not attempted",
-    "composing",
-    "editor in progress",
-    "draft saved",
-    "scheduled",
-    "published",
-    "publication outcome unknown",
-    "awaiting email verification",
-    "blocked — manual verification",
-    "blocked — missing verified data",
-    "blocked — account or email policy",
-    "rejected",
-    "removed",
-    "unavailable",
-    "paid-only",
-    "ineligible",
-    "duplicate — no action",
-    "terminated by user",
-}
-
-ALLOWED_PLATFORM_TYPES = {"directory", "article", "mixed", "social", "unknown"}
-ALLOWED_CAMPAIGN_MODES = {"directory", "article", "social", "mixed"}
 ALLOWED_WORKFLOW_VERSIONS = {"SPD V1 Batch", "Backlink Operations V1"}
-ALLOWED_RECORD_TYPES = {"submission", "article", "social"}
-ALLOWED_POST_TYPES = {"pin", "short post", "image post", "link post", "thread", "other"}
-ALLOWED_AI_DISCLOSURES = {"applied", "not required", "not available", "unknown"}
-
-ALLOWED_LEGITIMACY = {"passed", "failed", "not checked"}
 ALLOWED_COST_MODELS = {"free", "paid", "freemium", "unknown"}
-TERMINAL_OR_PENDING = {
-    "submitted",
-    "submission outcome unknown",
-    "awaiting approval",
-    "awaiting email verification",
-    "published",
-}
-EXECUTED = TERMINAL_OR_PENDING | {"form in progress", "draft saved"}
-ARTICLE_PENDING = {"submitted for review", "publication outcome unknown", "awaiting email verification"}
-ARTICLE_EXECUTED = ARTICLE_PENDING | {"writing", "editor in progress", "draft saved", "published"}
-SOCIAL_PENDING = {"scheduled", "publication outcome unknown", "awaiting email verification"}
-SOCIAL_EXECUTED = SOCIAL_PENDING | {"composing", "editor in progress", "draft saved", "published"}
-UNRESOLVED_VERIFICATION = {
-    "awaiting manual verification",
-    "verification expired/reset",
-    "deferred by user",
-}
+EXECUTED = {"in progress", "draft saved", "submitted", "submitted for review", "scheduled",
+            "awaiting approval", "awaiting email verification", "published", "outcome unknown"}
+TRACKING_KEYS = {"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+                 "gclid", "fbclid", "msclkid", "ref", "referrer"}
+SENSITIVE_QUERY_KEYS = {"token", "key", "api_key", "apikey", "code", "state", "session",
+                        "auth", "password", "otp", "signature", "sig"}
 
-TRACKING_KEYS = {
-    "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
-    "gclid", "fbclid", "msclkid", "ref", "referrer",
-}
-SENSITIVE_QUERY_KEYS = {
-    "token", "key", "api_key", "apikey", "code", "state", "session",
-    "auth", "password", "otp", "signature", "sig",
-}
+PLATFORM_HEADERS = ["website_name", "platform_domain", "canonical_submission_url", "availability",
+                    "cost_model", "account_required", "verification_pattern", "reciprocal_requirement",
+                    "last_verified_at", "route", "source", "notes", "platform_id", "row_version"]
+CAMPAIGN_HEADERS = ["product_canonical_id", "canonical_url", "campaign_id", "source_urls",
+                    "source_list_reference", "batch_authorization_reference", "execution_shard_size",
+                    "policy_version", "workflow_version", "row_version"]
+PLACEMENT_HEADERS = ["platform_domain", "website", "status", "public_url", "backlink_url", "anchor_text",
+                     "exact_result", "follow_up", "verification", "action_at", "last_checked",
+                     "placement_id", "queue_id", "product_canonical_id", "campaign_id", "platform_id",
+                     "route", "account_alias", "idempotency_key", "authorization_reference",
+                     "evidence_reference", "execution_method", "execution_notes", "row_version"]
+EVENT_HEADERS = ["event_id", "campaign_id", "queue_id", "idempotency_key", "timestamp", "action",
+                 "result", "evidence_reference", "actor_alias"]
+TABLE_HEADERS = {"Platforms": PLATFORM_HEADERS, "Campaigns": CAMPAIGN_HEADERS,
+                 "Placements": PLACEMENT_HEADERS, "Events": EVENT_HEADERS}
 
-PLATFORM_HEADERS = [
-    "website_name", "platform_domain", "platform_type", "canonical_submission_url", "availability",
-    "cost_model", "account_required", "verification_pattern", "reciprocal_requirement",
-    "last_verified_at", "route", "source", "notes", "platform_id", "row_version",
-]
+# Read-only legacy layouts retained solely for one-time schema migration.
+SCHEMA_V6_PLATFORM_HEADERS = ["website_name", "platform_domain", "platform_type", "canonical_submission_url",
+    "availability", "cost_model", "account_required", "verification_pattern", "reciprocal_requirement",
+    "last_verified_at", "route", "source", "notes", "platform_id", "row_version"]
+SCHEMA_V6_CAMPAIGN_HEADERS = ["product_canonical_id", "canonical_url", "campaign_id", "campaign_mode",
+    "source_urls", "source_list_reference", "batch_authorization_reference", "execution_shard_size",
+    "policy_version", "workflow_version", "row_version"]
+SCHEMA_V6_SUBMISSION_HEADERS = ["platform_domain", "website", "status", "exact_result", "public_listing_url",
+    "follow_up", "verification_preflight", "submit_timestamp", "last_checked", "queue_id",
+    "product_canonical_id", "campaign_id", "platform_id", "route", "account_alias", "idempotency_key",
+    "legitimacy_gate", "authorization_reference", "evidence_reference", "fields_entered", "fields_omitted",
+    "agreements_subscriptions", "backend_checked", "mailbox_checked", "public_page_checked",
+    "execution_shard", "execution_method", "execution_notes", "row_version"]
+SCHEMA_V6_ARTICLE_HEADERS = ["platform_domain", "website", "status", "title", "public_url", "target_url",
+    "anchor_text", "outbound_href", "outbound_rel", "exact_result", "follow_up", "verification_preflight",
+    "published_at", "last_checked", "article_id", "queue_id", "product_canonical_id", "campaign_id",
+    "platform_id", "route", "account_alias", "idempotency_key", "legitimacy_gate",
+    "authorization_reference", "evidence_reference", "content_fingerprint", "canonical_policy",
+    "backend_checked", "mailbox_checked", "public_page_checked", "outbound_link_checked",
+    "execution_method", "execution_notes", "row_version"]
+SCHEMA_V6_SOCIAL_HEADERS = ["platform_domain", "website", "status", "post_type", "title", "post_text",
+    "public_url", "target_url", "outbound_href", "board_or_channel", "media_reference", "ai_disclosure",
+    "utm_source", "utm_medium", "utm_campaign", "exact_result", "follow_up", "verification_preflight",
+    "published_at", "last_checked", "social_post_id", "queue_id", "product_canonical_id", "campaign_id",
+    "platform_id", "route", "account_alias", "idempotency_key", "legitimacy_gate",
+    "authorization_reference", "evidence_reference", "content_fingerprint", "public_page_checked",
+    "outbound_link_checked", "media_checked", "backend_checked", "mailbox_checked", "execution_method",
+    "execution_notes", "row_version"]
+SCHEMA_V6_EVENT_HEADERS = ["event_id", "record_type", "campaign_id", "queue_id", "idempotency_key",
+                           "timestamp", "action", "result", "evidence_reference", "actor_alias"]
+SCHEMA_V6_TABLE_HEADERS = {"Platforms": SCHEMA_V6_PLATFORM_HEADERS, "Campaigns": SCHEMA_V6_CAMPAIGN_HEADERS,
+    "Submissions": SCHEMA_V6_SUBMISSION_HEADERS, "Articles": SCHEMA_V6_ARTICLE_HEADERS,
+    "SocialPosts": SCHEMA_V6_SOCIAL_HEADERS, "Events": SCHEMA_V6_EVENT_HEADERS}
+LEGACY_PLATFORM_HEADERS = [h for h in SCHEMA_V6_PLATFORM_HEADERS if h != "platform_type"]
+LEGACY_CAMPAIGN_HEADERS = ["product_canonical_id", "canonical_url", "campaign_id", "source_urls",
+    "source_list_reference", "batch_authorization_reference", "execution_shard_size", "policy_version",
+    "spd_version", "row_version"]
+LEGACY_SUBMISSION_HEADERS = list(SCHEMA_V6_SUBMISSION_HEADERS)
+LEGACY_EVENT_HEADERS = [h for h in SCHEMA_V6_EVENT_HEADERS if h != "record_type"]
+LEGACY_TABLE_HEADERS = {"Platforms": LEGACY_PLATFORM_HEADERS, "Campaigns": LEGACY_CAMPAIGN_HEADERS,
+                        "Submissions": LEGACY_SUBMISSION_HEADERS, "Events": LEGACY_EVENT_HEADERS}
+SCHEMA_V5_TABLE_HEADERS = {"Platforms": SCHEMA_V6_PLATFORM_HEADERS, "Campaigns": SCHEMA_V6_CAMPAIGN_HEADERS,
+    "Submissions": SCHEMA_V6_SUBMISSION_HEADERS, "Articles": SCHEMA_V6_ARTICLE_HEADERS,
+    "Events": SCHEMA_V6_EVENT_HEADERS}
 
-CAMPAIGN_HEADERS = [
-    "product_canonical_id", "canonical_url", "campaign_id", "campaign_mode", "source_urls",
-    "source_list_reference", "batch_authorization_reference", "execution_shard_size",
-    "policy_version", "workflow_version", "row_version",
-]
-
-SUBMISSION_HEADERS = [
-    "platform_domain", "website", "status", "exact_result", "public_listing_url",
-    "follow_up", "verification_preflight", "submit_timestamp", "last_checked",
-    "queue_id", "product_canonical_id", "campaign_id", "platform_id", "route",
-    "account_alias", "idempotency_key", "legitimacy_gate", "authorization_reference",
-    "evidence_reference", "fields_entered", "fields_omitted", "agreements_subscriptions",
-    "backend_checked", "mailbox_checked", "public_page_checked", "execution_shard",
-    "execution_method", "execution_notes", "row_version",
-]
-
-EVENT_HEADERS = [
-    "event_id", "record_type", "campaign_id", "queue_id", "idempotency_key", "timestamp",
-    "action", "result", "evidence_reference", "actor_alias",
-]
-
-ARTICLE_HEADERS = [
-    "platform_domain", "website", "status", "title", "public_url", "target_url",
-    "anchor_text", "outbound_href", "outbound_rel", "exact_result", "follow_up",
-    "verification_preflight", "published_at", "last_checked", "article_id", "queue_id",
-    "product_canonical_id", "campaign_id", "platform_id", "route", "account_alias",
-    "idempotency_key", "legitimacy_gate", "authorization_reference", "evidence_reference",
-    "content_fingerprint", "canonical_policy", "backend_checked", "mailbox_checked",
-    "public_page_checked", "outbound_link_checked", "execution_method", "execution_notes",
-    "row_version",
-]
-
-SOCIAL_POST_HEADERS = [
-    "platform_domain", "website", "status", "post_type", "title", "post_text",
-    "public_url", "target_url", "outbound_href", "board_or_channel", "media_reference",
-    "ai_disclosure", "utm_source", "utm_medium", "utm_campaign", "exact_result",
-    "follow_up", "verification_preflight", "published_at", "last_checked", "social_post_id",
-    "queue_id", "product_canonical_id", "campaign_id", "platform_id", "route",
-    "account_alias", "idempotency_key", "legitimacy_gate", "authorization_reference",
-    "evidence_reference", "content_fingerprint", "public_page_checked",
-    "outbound_link_checked", "media_checked", "backend_checked", "mailbox_checked",
-    "execution_method", "execution_notes", "row_version",
-]
-
-LEGACY_PLATFORM_HEADERS = [
-    "website_name", "platform_domain", "canonical_submission_url", "availability",
-    "cost_model", "account_required", "verification_pattern", "reciprocal_requirement",
-    "last_verified_at", "route", "source", "notes", "platform_id", "row_version",
-]
-LEGACY_CAMPAIGN_HEADERS = [
-    "product_canonical_id", "canonical_url", "campaign_id", "source_urls",
-    "source_list_reference", "batch_authorization_reference", "execution_shard_size",
-    "policy_version", "spd_version", "row_version",
-]
-LEGACY_SUBMISSION_HEADERS = list(SUBMISSION_HEADERS)
-LEGACY_EVENT_HEADERS = [
-    "event_id", "campaign_id", "queue_id", "idempotency_key", "timestamp",
-    "action", "result", "evidence_reference", "actor_alias",
-]
-
-LEGACY_TABLE_HEADERS = {
-    "Platforms": LEGACY_PLATFORM_HEADERS,
-    "Campaigns": LEGACY_CAMPAIGN_HEADERS,
-    "Submissions": LEGACY_SUBMISSION_HEADERS,
-    "Events": LEGACY_EVENT_HEADERS,
-}
-
-SCHEMA_V5_TABLE_HEADERS = {
-    "Platforms": PLATFORM_HEADERS,
-    "Campaigns": CAMPAIGN_HEADERS,
-    "Submissions": SUBMISSION_HEADERS,
-    "Articles": ARTICLE_HEADERS,
-    "Events": EVENT_HEADERS,
-}
-
-TABLE_HEADERS = {
-    "Platforms": PLATFORM_HEADERS,
-    "Campaigns": CAMPAIGN_HEADERS,
-    "Submissions": SUBMISSION_HEADERS,
-    "Articles": ARTICLE_HEADERS,
-    "SocialPosts": SOCIAL_POST_HEADERS,
-    "Events": EVENT_HEADERS,
-}
-
-# Human-facing labels shown in row 1. The stable snake_case keys above remain
-# authoritative for JSON input, validation, exports, and record processing.
 HEADER_LABELS = {
-    "platform_id": "平台编号", "platform_domain": "平台域名", "website_name": "平台名称",
-    "platform_type": "平台类型",
-    "canonical_submission_url": "标准提交入口", "route": "提交路线", "account_required": "是否需要账号",
-    "verification_pattern": "验证方式", "cost_model": "收费模式", "reciprocal_requirement": "互链要求",
-    "availability": "可用状态", "last_verified_at": "最后核验时间", "source": "信息来源",
-    "notes": "备注", "row_version": "行版本", "updated_at": "更新时间",
-    "campaign_id": "活动编号", "spd_version": "SPD 版本", "workflow_version": "工作流版本",
-    "campaign_mode": "活动类型", "product_canonical_id": "产品编号",
-    "canonical_url": "产品官网", "source_list_reference": "来源清单编号", "source_urls": "来源网址",
-    "batch_authorization_reference": "批次授权编号", "execution_shard_size": "每批数量",
-    "policy_version": "规则版本",
-    "maximum_active_tabs": "最大标签页数", "host_platform": "运行系统", "ui_environment": "界面环境",
-    "available_control_capabilities": "可用控制能力", "browser_routing_policy": "浏览器选择规则",
-    "credential_policy": "凭据规则", "evidence_policy": "证据规则", "duplicate_policy": "去重规则",
-    "ambiguous_outcome_policy": "结果不明处理规则", "ranking_manipulation_prohibited": "禁止操纵排名",
-    "created_at": "创建时间", "queue_id": "队列编号", "website": "提交页面",
-    "account_alias": "账号别名", "idempotency_key": "防重复键", "execution_shard": "执行批次",
-    "execution_method": "执行方式", "execution_notes": "执行备注",
-    "platform_capability_result": "平台操作能力", "requested_browser_constraint": "指定浏览器要求",
-    "selected_browser_surface": "实际浏览器界面", "execution_backend_session_alias": "执行会话别名",
-    "backend_selection_reason": "选择执行方式的原因", "legitimacy_gate": "合规性检查",
-    "authorization_reference": "授权编号", "status": "提交状态", "verification_preflight": "验证预检",
+    "website_name": "平台名称", "platform_domain": "平台域名", "canonical_submission_url": "标准入口",
+    "availability": "可用状态", "cost_model": "收费模式", "account_required": "需要账号",
+    "verification_pattern": "验证方式", "reciprocal_requirement": "互链要求", "last_verified_at": "最后核验",
+    "route": "操作入口", "source": "信息来源", "notes": "备注", "platform_id": "平台编号",
+    "row_version": "行版本", "product_canonical_id": "产品编号", "canonical_url": "产品官网",
+    "campaign_id": "活动编号", "source_urls": "来源网址", "source_list_reference": "来源清单",
+    "batch_authorization_reference": "批次授权", "execution_shard_size": "每批数量",
+    "policy_version": "规则版本", "workflow_version": "工作流版本", "website": "操作页面",
+    "status": "状态", "public_url": "公开页面", "backlink_url": "实际外链", "anchor_text": "锚文本",
+    "exact_result": "准确结果", "follow_up": "后续处理", "verification": "核验情况",
+    "action_at": "操作时间", "last_checked": "最后检查", "placement_id": "记录编号",
+    "queue_id": "队列编号", "account_alias": "账号别名", "idempotency_key": "防重复键",
+    "authorization_reference": "授权编号", "evidence_reference": "证据引用",
+    "execution_method": "执行方式", "execution_notes": "执行备注", "event_id": "事件编号",
+    "timestamp": "事件时间", "action": "动作", "result": "结果", "actor_alias": "操作者别名"}
+# Previous labels are used only to verify an old workbook before migration.
+HEADER_LABELS.update({
+    "platform_type": "平台类型", "campaign_mode": "活动类型", "spd_version": "SPD 版本",
+    "record_type": "记录类型", "legitimacy_gate": "合规性检查", "verification_preflight": "验证预检",
     "fields_entered": "已填写字段", "fields_omitted": "未填写字段", "agreements_subscriptions": "协议与订阅",
-    "submit_timestamp": "提交时间", "exact_result": "准确结果", "evidence_reference": "证据编号",
-    "public_listing_url": "公开页面网址", "backend_checked": "后台检查", "mailbox_checked": "邮箱检查",
-    "public_page_checked": "公开页面检查", "last_checked": "最后检查时间", "follow_up": "后续处理",
-    "event_id": "事件编号", "timestamp": "事件时间", "action": "操作", "result": "操作结果",
-    "actor_alias": "操作者别名", "record_type": "记录类型", "article_id": "文章编号",
-    "title": "文章标题", "public_url": "公开文章网址", "target_url": "目标链接",
-    "anchor_text": "实际锚文本", "outbound_href": "实际外链地址", "outbound_rel": "链接 rel",
-    "published_at": "发布时间", "content_fingerprint": "内容指纹",
-    "canonical_policy": "Canonical 规则", "outbound_link_checked": "外链检查",
+    "submit_timestamp": "提交时间", "public_listing_url": "公开页面网址", "backend_checked": "后台检查",
+    "mailbox_checked": "邮箱检查", "public_page_checked": "公开页面检查", "execution_shard": "执行批次",
+    "article_id": "文章编号", "title": "文章标题", "target_url": "目标链接",
+    "outbound_href": "实际外链地址", "outbound_rel": "链接 rel", "published_at": "发布时间",
+    "content_fingerprint": "内容指纹", "canonical_policy": "Canonical 规则", "outbound_link_checked": "外链检查",
     "social_post_id": "社交帖子编号", "post_type": "帖子类型", "post_text": "正文",
-    "board_or_channel": "Board / 频道", "media_reference": "图片 / 媒体编号",
-    "ai_disclosure": "AI 标识", "utm_source": "UTM 来源", "utm_medium": "UTM 媒介",
-    "utm_campaign": "UTM 活动", "media_checked": "图片 / 媒体检查",
-}
-
-
-def display_headers(tab_name: str) -> list[str]:
-    """Return readable row-1 labels while preserving field order."""
-    return [HEADER_LABELS[header] for header in TABLE_HEADERS[tab_name]]
-
-
-def legacy_display_headers(tab_name: str) -> list[str]:
-    """Return the prior schema labels used only by the one-step migration."""
-    return [HEADER_LABELS[header] for header in LEGACY_TABLE_HEADERS[tab_name]]
-
-
-def migrate_legacy_record(tab_name: str, record: dict[str, object]) -> dict[str, str]:
-    """Convert one schema-v4 record to the current shared model."""
-    migrated = {key: record.get(key, "") for key in TABLE_HEADERS[tab_name]}
-    if tab_name == "Platforms":
-        migrated["platform_type"] = "directory"
-    elif tab_name == "Campaigns":
-        migrated["campaign_mode"] = "directory"
-        migrated["workflow_version"] = "SPD V1 Batch"
-    elif tab_name == "Events":
-        migrated["record_type"] = "submission"
-    return compact_record_timestamps({key: str(value) for key, value in migrated.items()})
-
-DROPDOWNS = {
-    ("Submissions", "status"): sorted(ALLOWED_STATUSES),
-    ("Submissions", "verification_preflight"): sorted(ALLOWED_VERIFICATION),
-    ("Submissions", "legitimacy_gate"): sorted(ALLOWED_LEGITIMACY),
-    ("Platforms", "account_required"): ["yes", "no", "unknown"],
+    "board_or_channel": "Board / 频道", "media_reference": "图片 / 媒体编号", "ai_disclosure": "AI 标识",
+    "utm_source": "UTM 来源", "utm_medium": "UTM 媒介", "utm_campaign": "UTM 活动", "media_checked": "图片 / 媒体检查",
+})
+LEGACY_HEADER_LABELS = dict(HEADER_LABELS)
+LEGACY_HEADER_LABELS.update({
+    "canonical_submission_url": "标准提交入口", "route": "提交路线", "website": "提交页面", "account_required": "是否需要账号",
+    "last_verified_at": "最后核验时间", "source_list_reference": "来源清单编号",
+    "batch_authorization_reference": "批次授权编号", "status": "提交状态",
+    "evidence_reference": "证据编号", "last_checked": "最后检查时间", "public_url": "公开文章网址",
+    "anchor_text": "实际锚文本", "action": "操作", "result": "操作结果",
+})
+DROPDOWNS = {("Platforms", "availability"): ["available", "unavailable", "unknown"],
     ("Platforms", "cost_model"): sorted(ALLOWED_COST_MODELS),
+    ("Platforms", "account_required"): ["yes", "no", "unknown"],
     ("Platforms", "reciprocal_requirement"): ["none", "optional", "required", "unknown"],
-    ("Platforms", "availability"): ["available", "unavailable", "unknown"],
-    ("Platforms", "platform_type"): sorted(ALLOWED_PLATFORM_TYPES),
-    ("Campaigns", "campaign_mode"): sorted(ALLOWED_CAMPAIGN_MODES),
-    ("Articles", "status"): sorted(ARTICLE_STATUSES),
-    ("Articles", "verification_preflight"): sorted(ALLOWED_VERIFICATION),
-    ("Articles", "legitimacy_gate"): sorted(ALLOWED_LEGITIMACY),
-    ("SocialPosts", "status"): sorted(SOCIAL_STATUSES),
-    ("SocialPosts", "post_type"): sorted(ALLOWED_POST_TYPES),
-    ("SocialPosts", "ai_disclosure"): sorted(ALLOWED_AI_DISCLOSURES),
-    ("SocialPosts", "verification_preflight"): sorted(ALLOWED_VERIFICATION),
-    ("SocialPosts", "legitimacy_gate"): sorted(ALLOWED_LEGITIMACY),
-    ("Events", "record_type"): sorted(ALLOWED_RECORD_TYPES),
-}
+    ("Placements", "status"): sorted(ALLOWED_STATUSES)}
 
+class RecordValidationError(ValueError): pass
 
-class RecordValidationError(ValueError):
-    """Raised when a record cannot safely enter the workbook."""
-
+def display_headers(tab_name: str) -> list[str]: return [HEADER_LABELS[h] for h in TABLE_HEADERS[tab_name]]
 
 def normalize_url(value: str) -> str:
-    try:
-        parts = urlsplit(str(value).strip())
-    except ValueError:
-        return str(value).strip()
-    host = (parts.hostname or "").lower()
-    if not host:
-        return str(value).strip()
-    port = f":{parts.port}" if parts.port else ""
-    query = [
-        (key, val) for key, val in parse_qsl(parts.query, keep_blank_values=True)
-        if key.lower() not in TRACKING_KEYS
-    ]
-    path = parts.path or "/"
-    if path != "/":
-        path = path.rstrip("/")
-    return urlunsplit(((parts.scheme or "https").lower(), host + port, path, urlencode(query), ""))
-
-
-def _empty(value: object) -> bool:
-    return str(value or "").strip().lower() in {"", "none", "not applicable"}
-
-
-def _not_submitted(value: object) -> bool:
-    return str(value or "").strip().lower() in {"", "not submitted", "not applicable"}
-
-
-def _confirmed_check(value: object) -> bool:
-    """Accept explicit positive checks, never arbitrary non-empty failure text."""
-    return bool(
-        re.match(
-            r"^(?:checked|verified|passed|confirmed|visible|yes|approved)\b",
-            str(value or "").strip(),
-            flags=re.IGNORECASE,
-        )
-    )
-
-
-def _assert_iso(value: object, field: str, *, allow_sentinel: bool = False) -> None:
-    text = str(value or "").strip()
-    if allow_sentinel and text.lower() in {"", "not submitted", "not checked", "not applicable"}:
-        return
-    try:
-        datetime.fromisoformat(text.replace("Z", "+00:00"))
-    except ValueError as exc:
-        raise RecordValidationError(f"{field} must be an ISO-8601 timestamp") from exc
-
-
-TIMESTAMP_FIELDS = {"last_verified_at", "submit_timestamp", "published_at", "last_checked", "timestamp"}
-
+    raw = str(value).strip()
+    if not re.match(r"^https?://", raw, flags=re.I): raise RecordValidationError(f"URL must be public HTTP(S): {raw}")
+    split = urlsplit(raw)
+    if not split.hostname: raise RecordValidationError(f"URL has no hostname: {raw}")
+    query = [(k, v) for k, v in parse_qsl(split.query, keep_blank_values=True) if k.lower() not in TRACKING_KEYS]
+    path = split.path or "/"
+    if path != "/": path = path.rstrip("/")
+    return urlunsplit((split.scheme.lower(), split.netloc.lower(), path, urlencode(query), ""))
 
 def compact_timestamp(value: object) -> str:
-    """Render a validated timestamp as local date and minute for human review."""
-    text = str(value).strip()
-    if text.lower() in {"", "not submitted", "not checked", "not applicable", "unknown"}:
-        return text
-    try:
-        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
-    except ValueError as exc:
-        raise RecordValidationError("timestamp must be ISO-8601") from exc
-    return parsed.strftime("%Y-%m-%d %H:%M")
-
+    raw = str(value or "").strip()
+    if not raw or raw.lower() in {"not submitted", "not published", "unknown"}: return raw
+    try: return datetime.fromisoformat(raw.replace("Z", "+00:00")).strftime("%Y-%m-%d %H:%M")
+    except ValueError as exc: raise RecordValidationError(f"invalid timestamp: {raw}") from exc
 
 def compact_record_timestamps(record: dict[str, object]) -> dict[str, str]:
-    compacted = {key: str(value) for key, value in record.items()}
-    for field in TIMESTAMP_FIELDS & compacted.keys():
-        compacted[field] = compact_timestamp(compacted[field])
-    return compacted
+    result = {k: str(v) for k, v in record.items()}
+    for field in ("last_verified_at", "action_at", "last_checked", "timestamp"):
+        if field in result: result[field] = compact_timestamp(result[field])
+    return result
 
-
-def _check_sensitive(record: dict[str, object]) -> None:
-    serialized = json.dumps(record, ensure_ascii=False)
-    if re.search(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", serialized, re.IGNORECASE):
-        raise RecordValidationError("raw email address found; use a contact alias")
-    if re.search(r"(?<![\w-])\+\d[\d\s().-]{7,}\d(?![\w-])", serialized):
-        raise RecordValidationError("raw phone number found; use a contact alias")
-    secret_key = re.compile(
-        r"(?:password|passcode|otp|recovery[_ ]?code|cookie|session[_ ]?id|oauth[_ ]?code|magic[_ ]?link)",
-        re.IGNORECASE,
-    )
-    for key, value in record.items():
-        if secret_key.search(str(key)) and not _empty(value) and str(value).lower() != "redacted":
-            raise RecordValidationError(f"secret-bearing field found: {key}")
-        if isinstance(value, str):
-            if re.search(
-                r"(?:password|passcode|otp|recovery[_ ]?code|cookie|session[_ ]?id|"
-                r"oauth[_ ]?code|magic[_ ]?link)\s*[:=]\s*(?!none\b|redacted\b)\S+",
-                value,
-                re.IGNORECASE,
-            ):
-                raise RecordValidationError("secret-bearing value found")
-            for url in re.findall(r"https?://[^\s)>]+", value):
-                query_keys = {key.lower() for key, _ in parse_qsl(urlsplit(url).query, keep_blank_values=True)}
-                if query_keys & SENSITIVE_QUERY_KEYS:
-                    raise RecordValidationError("URL with sensitive authentication parameter found")
-
-
-def validate_privacy(record: dict[str, object]) -> None:
-    _check_sensitive(record)
-
-
+def _empty(v: object) -> bool: return not str(v or "").strip()
+def _meaningful(v: object) -> bool: return str(v or "").strip().lower() not in {"", "not applicable", "not checked", "unknown", "none"}
 def _require(record: dict[str, object], fields: list[str], kind: str) -> None:
-    missing = [field for field in fields if field not in record or str(record[field]).strip() == ""]
-    if missing:
-        raise RecordValidationError(f"{kind} missing required fields: {', '.join(missing)}")
-
-
-def _validate_managed_fields(record: dict[str, object]) -> None:
-    if "row_version" in record:
-        try:
-            if int(record["row_version"]) < 1:
-                raise ValueError
-        except (TypeError, ValueError) as exc:
-            raise RecordValidationError("row_version must be a positive integer") from exc
-
+    missing = [f for f in fields if _empty(record.get(f))]
+    if missing: raise RecordValidationError(f"{kind} missing required fields: {', '.join(missing)}")
+def _assert_time(v: object, field: str, sentinels: set[str] | None = None) -> None:
+    raw = str(v or "").strip()
+    if sentinels and raw.lower() in sentinels: return
+    try: datetime.strptime(raw, "%Y-%m-%d %H:%M")
+    except ValueError as exc: raise RecordValidationError(f"{field} must use YYYY-MM-DD HH:MM") from exc
+def validate_privacy(record: dict[str, object]) -> None:
+    serialized = json.dumps(record, ensure_ascii=False)
+    if re.search(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", serialized, flags=re.I):
+        raise RecordValidationError("raw email address found; use an alias")
+    if re.search(r"(?<![\w-])\+\d[\d\s().-]{7,}\d(?![\w-])", serialized):
+        raise RecordValidationError("raw phone number found; use an alias")
+    for field, value in record.items():
+        text = str(value or "")
+        if re.search(r"(?i)(password|passcode|otp|recovery[_ ]?code|cookie|session[_ ]?id|oauth[_ ]?code|magic[_ ]?link)\s*[:=]\s*(?!none\b|redacted\b)\S+", text):
+            raise RecordValidationError(f"secret-bearing value is forbidden in {field}")
+        if re.search(r"(?i)Bearer\s+[A-Za-z0-9._~-]+", text):
+            raise RecordValidationError(f"bearer token is forbidden in {field}")
+        if re.match(r"^https?://", text, flags=re.I):
+            if any(k.lower() in SENSITIVE_QUERY_KEYS for k, _ in parse_qsl(urlsplit(text).query, keep_blank_values=True)):
+                raise RecordValidationError(f"sensitive query parameter is forbidden in {field}")
 
 def computed_idempotency_key(record: dict[str, object]) -> str:
-    return "|".join(
-        str(record.get(field, "")).strip()
-        for field in ("platform_domain", "product_canonical_id", "account_alias", "route")
-    )
+    return "|".join(str(record.get(k, "")).strip() for k in ("platform_domain", "product_canonical_id", "account_alias", "route", "placement_id"))
 
+def validate_platform(r: dict[str, object]) -> None:
+    _require(r, [h for h in PLATFORM_HEADERS if h not in {"row_version", "source", "notes"}], "platform"); validate_privacy(r); normalize_url(str(r["canonical_submission_url"])); _assert_time(r["last_verified_at"], "last_verified_at")
+    if r["availability"] not in {"available", "unavailable", "unknown"}: raise RecordValidationError("invalid availability")
+    if r["cost_model"] not in ALLOWED_COST_MODELS: raise RecordValidationError("invalid cost_model")
+    if r["account_required"] not in {"yes", "no", "unknown"}: raise RecordValidationError("invalid account_required")
+    if r["reciprocal_requirement"] not in {"none", "optional", "required", "unknown"}: raise RecordValidationError("invalid reciprocal_requirement")
 
-def validate_platform(record: dict[str, object]) -> None:
-    required = [
-        field for field in PLATFORM_HEADERS
-        if field not in {"source", "notes", "row_version", "updated_at"}
-    ]
-    _require(record, required, "platform")
-    _check_sensitive(record)
-    if record["platform_type"] not in ALLOWED_PLATFORM_TYPES:
-        raise RecordValidationError("invalid platform_type")
-    if record["account_required"] not in {"yes", "no", "unknown"}:
-        raise RecordValidationError("invalid account_required")
-    if record["cost_model"] not in ALLOWED_COST_MODELS:
-        raise RecordValidationError("invalid cost_model")
-    if record["reciprocal_requirement"] not in {"none", "optional", "required", "unknown"}:
-        raise RecordValidationError("invalid reciprocal_requirement")
-    if record["availability"] not in {"available", "unavailable", "unknown"}:
-        raise RecordValidationError("invalid availability")
-    url_domain = (urlsplit(normalize_url(str(record["canonical_submission_url"]))).hostname or "").lower()
-    if url_domain != str(record["platform_domain"]).lower():
-        raise RecordValidationError("platform_domain must match canonical_submission_url")
-    _assert_iso(record["last_verified_at"], "last_verified_at", allow_sentinel=True)
-    _validate_managed_fields(record)
+def normalize_campaign_input(r: dict[str, object]) -> dict[str, object]:
+    result = dict(r)
+    if "spd_version" in result and "workflow_version" not in result: result["workflow_version"] = "SPD V1 Batch"
+    result.pop("spd_version", None); result.pop("campaign_mode", None)
+    return result
+def validate_campaign(r: dict[str, object]) -> None:
+    _require(r, [h for h in CAMPAIGN_HEADERS if h != "row_version"], "campaign"); validate_privacy(r); normalize_url(str(r["canonical_url"]))
+    if r["workflow_version"] not in ALLOWED_WORKFLOW_VERSIONS: raise RecordValidationError("invalid workflow_version")
+    try:
+        if int(str(r["execution_shard_size"])) < 1: raise ValueError
+    except ValueError as exc: raise RecordValidationError("execution_shard_size must be a positive integer") from exc
 
-
-def normalize_campaign_input(record: dict[str, object]) -> dict[str, object]:
-    """Accept schema-v4 campaign payloads while storing current fields."""
-    normalized = dict(record)
-    legacy_version = str(normalized.pop("spd_version", "")).strip()
-    current_version = str(normalized.get("workflow_version", "")).strip()
-    mapped_legacy = "SPD V1 Batch" if legacy_version == "V1 Batch" else legacy_version
-    if current_version and mapped_legacy and current_version != mapped_legacy:
-        raise RecordValidationError("spd_version conflicts with workflow_version")
-    if not normalized.get("workflow_version") and legacy_version:
-        normalized["workflow_version"] = mapped_legacy
-    if not normalized.get("campaign_mode") and normalized.get("workflow_version") == "SPD V1 Batch":
-        normalized["campaign_mode"] = "directory"
-    return normalized
-
-
-def normalize_event_input(record: dict[str, object]) -> dict[str, object]:
-    """Default legacy event payloads to directory submission events."""
-    normalized = dict(record)
-    normalized.setdefault("record_type", "submission")
-    return normalized
-
-
-def validate_campaign(record: dict[str, object]) -> None:
-    record = normalize_campaign_input(record)
-    generated = {"row_version"}
-    _require(record, [field for field in CAMPAIGN_HEADERS if field not in generated], "campaign")
-    _check_sensitive(record)
-    if record["workflow_version"] not in ALLOWED_WORKFLOW_VERSIONS:
-        raise RecordValidationError("invalid workflow_version")
-    if record["campaign_mode"] not in ALLOWED_CAMPAIGN_MODES:
-        raise RecordValidationError("invalid campaign_mode")
-    if record["workflow_version"] == "SPD V1 Batch" and record["campaign_mode"] != "directory":
-        raise RecordValidationError("SPD V1 Batch campaigns must use directory mode")
-    if record["policy_version"] != POLICY_VERSION:
-        raise RecordValidationError(f"policy_version must be {POLICY_VERSION}")
-    for field in ("execution_shard_size",):
-        try:
-            if int(record[field]) < 1:
-                raise ValueError
-        except (TypeError, ValueError) as exc:
-            raise RecordValidationError(f"{field} must be a positive integer") from exc
-    if not urlsplit(str(record["canonical_url"])).hostname:
-        raise RecordValidationError("canonical_url must be a public URL")
-    source_urls = [item.strip() for item in str(record["source_urls"]).splitlines() if item.strip()]
-    if not source_urls or any(not urlsplit(item).hostname for item in source_urls):
-        raise RecordValidationError("source_urls must contain one or more newline-separated public URLs")
-    _validate_managed_fields(record)
-
-
-def validate_submission_state(record: dict[str, object]) -> None:
-    status = str(record.get("status", ""))
-    verification = str(record.get("verification_preflight", ""))
-    if status not in ALLOWED_STATUSES:
-        raise RecordValidationError(f"invalid status: {status}")
-    if verification not in ALLOWED_VERIFICATION:
-        raise RecordValidationError(f"invalid verification_preflight: {verification}")
-    if record.get("legitimacy_gate") not in ALLOWED_LEGITIMACY:
-        raise RecordValidationError("invalid legitimacy_gate")
-    if _empty(record.get("execution_method")):
-        raise RecordValidationError("execution_method must not be empty")
-    if status in EXECUTED and str(record.get("execution_method", "")).strip().lower() == "unavailable":
-        raise RecordValidationError("executed without a compatible execution method")
-    if status in EXECUTED and record.get("legitimacy_gate") != "passed":
-        raise RecordValidationError("executed without a passed legitimacy gate")
-    if status in EXECUTED and _empty(record.get("authorization_reference")):
-        raise RecordValidationError("executed without an authorization reference")
-    if status in EXECUTED and verification in UNRESOLVED_VERIFICATION:
-        raise RecordValidationError("executed while verification remained unresolved")
-    if status == "not attempted":
-        if str(record.get("fields_entered", "")).strip().lower() not in {"none", ""}:
-            raise RecordValidationError("not attempted but listing fields were entered")
-        if str(record.get("agreements_subscriptions", "")).strip().lower() not in {"none", ""}:
-            raise RecordValidationError("not attempted but agreements/subscriptions were selected")
-        if not _not_submitted(record.get("submit_timestamp")):
-            raise RecordValidationError("not attempted but has a submit timestamp")
-    if status in TERMINAL_OR_PENDING:
-        if _not_submitted(record.get("submit_timestamp")):
-            raise RecordValidationError(f"{status} requires a submit timestamp")
-        if str(record.get("exact_result", "")).strip().lower() in {"", "not attempted", "unknown"}:
-            raise RecordValidationError(f"{status} requires an exact result")
-        if _empty(record.get("evidence_reference")):
-            raise RecordValidationError(f"{status} requires an evidence reference")
-    if status == "submission outcome unknown":
-        for field in ("backend_checked", "mailbox_checked", "public_page_checked"):
-            if str(record.get(field, "")).strip().lower() in {"", "not applicable", "not checked"}:
-                raise RecordValidationError(f"unknown outcome requires {field}")
-    if status == "published" and _empty(record.get("public_listing_url")):
-        raise RecordValidationError("published requires a public_listing_url")
-    if status == "published" and not urlsplit(str(record.get("public_listing_url", ""))).hostname:
-        raise RecordValidationError("published public_listing_url must be a public URL")
-    _assert_iso(record.get("last_checked"), "last_checked")
-    _assert_iso(record.get("submit_timestamp"), "submit_timestamp", allow_sentinel=True)
-
-
-def validate_submission(record: dict[str, object]) -> None:
-    generated = {"row_version"}
-    _require(record, [field for field in SUBMISSION_HEADERS if field not in generated], "submission")
-    _check_sensitive(record)
-    normalized = normalize_url(str(record["website"]))
-    url_domain = (urlsplit(normalized).hostname or "").lower()
-    if url_domain != str(record["platform_domain"]).lower():
-        raise RecordValidationError("platform_domain must match website")
-    expected_key = computed_idempotency_key(record)
-    if record["idempotency_key"] != expected_key:
-        raise RecordValidationError(f"idempotency_key must equal {expected_key}")
-    validate_submission_state(record)
-    _validate_managed_fields(record)
-
-
-def validate_event(record: dict[str, object]) -> None:
-    record = normalize_event_input(record)
-    _require(record, EVENT_HEADERS, "event")
-    _check_sensitive(record)
-    if record["record_type"] not in ALLOWED_RECORD_TYPES:
-        raise RecordValidationError("invalid record_type")
-    _assert_iso(record["timestamp"], "timestamp")
-
-
-def computed_article_idempotency_key(record: dict[str, object]) -> str:
-    return "|".join(
-        str(record.get(field, "")).strip()
-        for field in ("platform_domain", "product_canonical_id", "account_alias", "route", "article_id")
-    )
-
-
-def validate_article_state(record: dict[str, object]) -> None:
-    status = str(record.get("status", ""))
-    verification = str(record.get("verification_preflight", ""))
-    if status not in ARTICLE_STATUSES:
-        raise RecordValidationError(f"invalid article status: {status}")
-    if verification not in ALLOWED_VERIFICATION:
-        raise RecordValidationError(f"invalid verification_preflight: {verification}")
-    if record.get("legitimacy_gate") not in ALLOWED_LEGITIMACY:
-        raise RecordValidationError("invalid legitimacy_gate")
-    if _empty(record.get("execution_method")):
-        raise RecordValidationError("execution_method must not be empty")
-    if status in ARTICLE_EXECUTED and str(record.get("execution_method", "")).strip().lower() == "unavailable":
-        raise RecordValidationError("article action executed without a compatible execution method")
-    if status in ARTICLE_EXECUTED and record.get("legitimacy_gate") != "passed":
-        raise RecordValidationError("article action executed without a passed legitimacy gate")
-    if status in ARTICLE_EXECUTED and _empty(record.get("authorization_reference")):
-        raise RecordValidationError("article action executed without an authorization reference")
-    if status in {"editor in progress", "draft saved"} | ARTICLE_PENDING | {"published"} and verification in UNRESOLVED_VERIFICATION:
-        raise RecordValidationError("article action executed while verification remained unresolved")
-    if status == "not attempted":
-        if not _not_submitted(record.get("published_at")):
-            raise RecordValidationError("not attempted article has a publish timestamp")
-        if not _empty(record.get("public_url")):
-            raise RecordValidationError("not attempted article has a public URL")
-    if status in {
-        "draft saved", "submitted for review", "publication outcome unknown",
-        "awaiting email verification", "published", "rejected", "removed",
-    }:
-        if str(record.get("exact_result", "")).strip().lower() in {"", "not attempted", "unknown"}:
-            raise RecordValidationError(f"{status} requires an exact result")
-        if _empty(record.get("evidence_reference")):
-            raise RecordValidationError(f"{status} requires an evidence reference")
-    if status == "publication outcome unknown":
-        for field in ("backend_checked", "mailbox_checked", "public_page_checked"):
-            if str(record.get(field, "")).strip().lower() in {"", "not applicable", "not checked"}:
-                raise RecordValidationError(f"unknown article outcome requires {field}")
+def validate_placement_state(r: dict[str, object]) -> None:
+    status = str(r.get("status", ""))
+    if status not in ALLOWED_STATUSES: raise RecordValidationError("invalid placement status")
+    if status in EXECUTED and not _meaningful(r.get("authorization_reference")): raise RecordValidationError("executed placement requires authorization_reference")
+    if status in {"submitted", "submitted for review", "scheduled", "awaiting approval", "awaiting email verification"}:
+        if not all(_meaningful(r.get(f)) for f in ("action_at", "exact_result", "evidence_reference")):
+            raise RecordValidationError("submitted or pending placement requires action_at, exact_result, and evidence_reference")
     if status == "published":
-        for field in ("public_url", "outbound_href", "anchor_text"):
-            if _empty(record.get(field)):
-                raise RecordValidationError(f"published article requires {field}")
-        if str(record.get("outbound_rel", "")).strip().lower() in {"", "not applicable", "not checked"}:
-            raise RecordValidationError("published article requires outbound_rel")
-        for field in ("public_page_checked", "outbound_link_checked"):
-            if str(record.get(field, "")).strip().lower() in {"", "not applicable", "not checked"}:
-                raise RecordValidationError(f"published article requires {field}")
-        if not urlsplit(str(record.get("public_url", ""))).hostname:
-            raise RecordValidationError("published article public_url must be a public URL")
-        if not urlsplit(str(record.get("outbound_href", ""))).hostname:
-            raise RecordValidationError("published article outbound_href must be a public URL")
-        target = urlsplit(str(record.get("target_url", "")))
-        outbound = urlsplit(str(record.get("outbound_href", "")))
-        target_path = target.path.rstrip("/") or "/"
-        outbound_path = outbound.path.rstrip("/") or "/"
-        if (target.scheme.lower(), target.netloc.lower(), target_path) != (
-            outbound.scheme.lower(), outbound.netloc.lower(), outbound_path
-        ):
-            raise RecordValidationError("published article outbound_href does not match target_url destination")
-        target_query = dict(parse_qsl(target.query, keep_blank_values=True))
-        outbound_query = dict(parse_qsl(outbound.query, keep_blank_values=True))
-        if any(outbound_query.get(key) != value for key, value in target_query.items()):
-            raise RecordValidationError("published article outbound_href is missing target_url parameters")
-        if _not_submitted(record.get("published_at")):
-            raise RecordValidationError("published article requires published_at")
-    if status == "removed":
-        if _empty(record.get("public_url")) or not urlsplit(str(record.get("public_url", ""))).hostname:
-            raise RecordValidationError("removed article requires its prior public_url")
-        if _not_submitted(record.get("published_at")):
-            raise RecordValidationError("removed article requires its prior published_at")
-        if str(record.get("public_page_checked", "")).strip().lower() in {
-            "", "not applicable", "not checked",
-        }:
-            raise RecordValidationError("removed article requires public_page_checked")
-    _assert_iso(record.get("last_checked"), "last_checked")
-    _assert_iso(record.get("published_at"), "published_at", allow_sentinel=True)
+        for f in ("public_url", "backlink_url", "anchor_text", "exact_result", "verification", "action_at", "last_checked", "evidence_reference"):
+            if f == "action_at" and str(r.get(f, "")).strip().lower() == "unknown": continue
+            if not _meaningful(r.get(f)): raise RecordValidationError(f"published placement requires {f}")
+    if status == "outcome unknown" and not _meaningful(r.get("verification")): raise RecordValidationError("outcome unknown requires a concrete verification summary")
+    if status == "removed" and not all(_meaningful(r.get(f)) for f in ("public_url", "action_at", "verification")):
+        raise RecordValidationError("removed placement requires prior public URL, action time, and verification")
 
+def validate_placement(r: dict[str, object]) -> None:
+    _require(r, [h for h in PLACEMENT_HEADERS if h != "row_version"], "placement"); validate_privacy(r)
+    normalize_url(str(r["website"]))
+    for f in ("public_url", "backlink_url"):
+        if _meaningful(r.get(f)): normalize_url(str(r[f]))
+    expected = computed_idempotency_key(r)
+    if str(r.get("idempotency_key")) != expected: raise RecordValidationError(f"idempotency_key must equal {expected}")
+    _assert_time(r["last_checked"], "last_checked"); _assert_time(r["action_at"], "action_at", {"not submitted", "not published", "unknown"})
+    validate_placement_state(r)
+def validate_event(r: dict[str, object]) -> None:
+    _require(r, EVENT_HEADERS, "event"); validate_privacy(r); _assert_time(r["timestamp"], "timestamp")
 
-def validate_article(record: dict[str, object]) -> None:
-    forbidden = {"body", "content", "html", "markdown", "article_body"} & set(record)
-    if forbidden:
-        raise RecordValidationError("article body fields must not be stored in Sheets records")
-    generated = {"row_version"}
-    _require(record, [field for field in ARTICLE_HEADERS if field not in generated], "article")
-    _check_sensitive(record)
-    website_domain = (urlsplit(normalize_url(str(record["website"]))).hostname or "").lower()
-    if website_domain != str(record["platform_domain"]).lower():
-        raise RecordValidationError("platform_domain must match article website")
-    if not urlsplit(str(record["target_url"])).hostname:
-        raise RecordValidationError("target_url must be a public URL")
-    expected_key = computed_article_idempotency_key(record)
-    if record["idempotency_key"] != expected_key:
-        raise RecordValidationError(f"idempotency_key must equal {expected_key}")
-    if not re.fullmatch(r"sha256:[0-9a-f]{64}", str(record["content_fingerprint"])):
-        raise RecordValidationError("content_fingerprint must be sha256:<64 lowercase hex characters>")
-    validate_article_state(record)
-    _validate_managed_fields(record)
+def prepare_record(kind: str, payload: dict[str, object], existing: dict[str, object] | None = None) -> dict[str, str]:
+    if kind == "platform": headers, validator = PLATFORM_HEADERS, validate_platform
+    elif kind == "campaign": payload, headers, validator = normalize_campaign_input(payload), CAMPAIGN_HEADERS, validate_campaign
+    elif kind == "placement": headers, validator = PLACEMENT_HEADERS, validate_placement
+    elif kind == "event": payload, headers, validator = {k: v for k, v in payload.items() if k != "record_type"}, EVENT_HEADERS, validate_event
+    else: raise RecordValidationError(f"unsupported record kind: {kind}")
+    unknown = sorted(set(payload) - set(headers) - {"expected_row_version"})
+    if unknown: raise RecordValidationError("unknown fields: " + ", ".join(unknown))
+    result = {h: str(payload.get(h, existing.get(h, "") if existing else "")) for h in headers}
+    result = compact_record_timestamps(result)
+    if kind != "event": result["row_version"] = str((int(str(existing.get("row_version", "0"))) if existing else 0) + 1)
+    validator(result); return result
 
-
-def computed_social_idempotency_key(record: dict[str, object]) -> str:
-    return "|".join(
-        str(record.get(field, "")).strip()
-        for field in ("platform_domain", "product_canonical_id", "account_alias", "route", "social_post_id")
-    )
-
-
-def _validate_target_href(record: dict[str, object], kind: str) -> None:
-    target = urlsplit(str(record.get("target_url", "")))
-    outbound = urlsplit(str(record.get("outbound_href", "")))
-    if not target.hostname:
-        raise RecordValidationError(f"{kind} target_url must be a public URL")
-    if not outbound.hostname:
-        raise RecordValidationError(f"published {kind} outbound_href must be a public URL")
-    target_path = target.path.rstrip("/") or "/"
-    outbound_path = outbound.path.rstrip("/") or "/"
-    if (target.scheme.lower(), target.netloc.lower(), target_path) != (
-        outbound.scheme.lower(), outbound.netloc.lower(), outbound_path
-    ):
-        raise RecordValidationError(f"published {kind} outbound_href does not match target_url destination")
-    target_query = dict(parse_qsl(target.query, keep_blank_values=True))
-    outbound_query = dict(parse_qsl(outbound.query, keep_blank_values=True))
-    if any(outbound_query.get(key) != value for key, value in target_query.items()):
-        raise RecordValidationError(f"published {kind} outbound_href is missing target_url parameters")
-
-
-def validate_social_state(record: dict[str, object]) -> None:
-    status = str(record.get("status", ""))
-    verification = str(record.get("verification_preflight", ""))
-    if status not in SOCIAL_STATUSES:
-        raise RecordValidationError(f"invalid social status: {status}")
-    if record.get("post_type") not in ALLOWED_POST_TYPES:
-        raise RecordValidationError("invalid post_type")
-    if record.get("ai_disclosure") not in ALLOWED_AI_DISCLOSURES:
-        raise RecordValidationError("invalid ai_disclosure")
-    if verification not in ALLOWED_VERIFICATION:
-        raise RecordValidationError(f"invalid verification_preflight: {verification}")
-    if record.get("legitimacy_gate") not in ALLOWED_LEGITIMACY:
-        raise RecordValidationError("invalid legitimacy_gate")
-    if _empty(record.get("execution_method")):
-        raise RecordValidationError("execution_method must not be empty")
-    if status in SOCIAL_EXECUTED and str(record.get("execution_method", "")).strip().lower() == "unavailable":
-        raise RecordValidationError("social action executed without a compatible execution method")
-    if status in SOCIAL_EXECUTED and record.get("legitimacy_gate") != "passed":
-        raise RecordValidationError("social action executed without a passed legitimacy gate")
-    if status in SOCIAL_EXECUTED and _empty(record.get("authorization_reference")):
-        raise RecordValidationError("social action executed without an authorization reference")
-    if status in {"editor in progress", "draft saved"} | SOCIAL_PENDING | {"published"} and verification in UNRESOLVED_VERIFICATION:
-        raise RecordValidationError("social action executed while verification remained unresolved")
-    if status == "not attempted":
-        if not _not_submitted(record.get("published_at")):
-            raise RecordValidationError("not attempted social post has a publish timestamp")
-        if not _empty(record.get("public_url")):
-            raise RecordValidationError("not attempted social post has a public URL")
-    if status in {
-        "draft saved", "scheduled", "publication outcome unknown", "awaiting email verification",
-        "published", "rejected", "removed",
-    }:
-        if str(record.get("exact_result", "")).strip().lower() in {"", "not attempted", "unknown"}:
-            raise RecordValidationError(f"{status} requires an exact result")
-        if _empty(record.get("evidence_reference")):
-            raise RecordValidationError(f"{status} requires an evidence reference")
-    if status == "publication outcome unknown":
-        for field in ("backend_checked", "mailbox_checked", "public_page_checked"):
-            if str(record.get(field, "")).strip().lower() in {"", "not applicable", "not checked"}:
-                raise RecordValidationError(f"unknown social outcome requires {field}")
-    if record.get("post_type") == "pin" and status in SOCIAL_EXECUTED | {"not attempted"}:
-        for field in ("board_or_channel", "media_reference"):
-            if _empty(record.get(field)):
-                raise RecordValidationError(f"pin requires {field}")
-        if not _confirmed_check(record.get("media_checked")):
-            raise RecordValidationError("pin requires media_checked")
-    if status == "published":
-        for field in ("public_url", "outbound_href"):
-            if _empty(record.get(field)):
-                raise RecordValidationError(f"published social post requires {field}")
-        for field in ("public_page_checked", "outbound_link_checked"):
-            if not _confirmed_check(record.get(field)):
-                raise RecordValidationError(f"published social post requires {field}")
-        if record.get("ai_disclosure") == "unknown":
-            raise RecordValidationError("published social post requires a resolved ai_disclosure")
-        if not urlsplit(str(record.get("public_url", ""))).hostname:
-            raise RecordValidationError("published social post public_url must be a public URL")
-        _validate_target_href(record, "social post")
-        if _not_submitted(record.get("published_at")):
-            raise RecordValidationError("published social post requires published_at or unknown for a backfill")
-    if status == "removed":
-        if _empty(record.get("public_url")) or not urlsplit(str(record.get("public_url", ""))).hostname:
-            raise RecordValidationError("removed social post requires its prior public_url")
-        if _not_submitted(record.get("published_at")):
-            raise RecordValidationError("removed social post requires its prior published_at")
-        if str(record.get("public_page_checked", "")).strip().lower() in {"", "not applicable", "not checked"}:
-            raise RecordValidationError("removed social post requires public_page_checked")
-    _assert_iso(record.get("last_checked"), "last_checked")
-    if str(record.get("published_at", "")).strip().lower() != "unknown":
-        _assert_iso(record.get("published_at"), "published_at", allow_sentinel=True)
-
-
-def validate_social_post(record: dict[str, object]) -> None:
-    generated = {"row_version"}
-    _require(record, [field for field in SOCIAL_POST_HEADERS if field not in generated], "social post")
-    _check_sensitive(record)
-    website_domain = (urlsplit(normalize_url(str(record["website"]))).hostname or "").lower()
-    if website_domain != str(record["platform_domain"]).lower():
-        raise RecordValidationError("platform_domain must match social website")
-    if not urlsplit(str(record["target_url"])).hostname:
-        raise RecordValidationError("social target_url must be a public URL")
-    expected_key = computed_social_idempotency_key(record)
-    if record["idempotency_key"] != expected_key:
-        raise RecordValidationError(f"idempotency_key must equal {expected_key}")
-    if not re.fullmatch(r"sha256:[0-9a-f]{64}", str(record["content_fingerprint"])):
-        raise RecordValidationError("content_fingerprint must be sha256:<64 lowercase hex characters>")
-    target_query = dict(parse_qsl(urlsplit(str(record["target_url"])).query, keep_blank_values=True))
-    for field in ("utm_source", "utm_medium", "utm_campaign"):
-        expected = str(record[field]).strip()
-        if not expected or target_query.get(field) != expected:
-            raise RecordValidationError(f"target_url must contain matching {field}")
-    validate_social_state(record)
-    _validate_managed_fields(record)
-
-
-def prepare_record(
-    kind: str,
-    record: dict[str, object],
-    existing: dict[str, object] | None = None,
-) -> dict[str, object]:
-    prepared = {key: value for key, value in record.items() if value is not None}
-    if kind == "campaign":
-        prepared = normalize_campaign_input(prepared)
-    elif kind == "event":
-        prepared = normalize_event_input(prepared)
-    if kind == "platform":
-        validate_platform(prepared)
-        headers = PLATFORM_HEADERS
-    elif kind == "campaign":
-        validate_campaign(prepared)
-        headers = CAMPAIGN_HEADERS
-    elif kind == "submission":
-        validate_submission(prepared)
-        headers = SUBMISSION_HEADERS
-    elif kind == "article":
-        validate_article(prepared)
-        headers = ARTICLE_HEADERS
-    elif kind == "social":
-        validate_social_post(prepared)
-        headers = SOCIAL_POST_HEADERS
-    elif kind == "event":
-        validate_event(prepared)
-        prepared = compact_record_timestamps(prepared)
-        return {key: str(prepared.get(key, "")) for key in EVENT_HEADERS}
-    else:
-        raise RecordValidationError(f"unknown record kind: {kind}")
-    if existing:
-        prepared["row_version"] = int(existing.get("row_version", 0) or 0) + 1
-    else:
-        prepared["row_version"] = 1
-    prepared = compact_record_timestamps(prepared)
-    return {key: str(prepared.get(key, "")) for key in headers}
-
-
-def row_values(headers: list[str], record: dict[str, object]) -> list[object]:
-    return [record.get(header, "") for header in headers]
-
-
+def row_values(headers: list[str], record: dict[str, object]) -> list[object]: return [record.get(h, "") for h in headers]
 def rows_to_records(headers: list[str], rows: list[list[object]]) -> list[dict[str, str]]:
-    records: list[dict[str, str]] = []
+    result = []
     for row in rows:
-        padded = list(row) + [""] * (len(headers) - len(row))
-        records.append({header: str(padded[index]) for index, header in enumerate(headers)})
-    return records
+        if not any(str(v).strip() for v in row): continue
+        padded = row + [""] * (len(headers) - len(row)); result.append({h: str(padded[i]) for i, h in enumerate(headers)})
+    return result
 
+def _status_from_v6(v: object) -> str:
+    return {"form in progress": "in progress", "writing": "in progress", "composing": "in progress",
+            "editor in progress": "in progress", "submission outcome unknown": "outcome unknown",
+            "publication outcome unknown": "outcome unknown"}.get(str(v), str(v))
+def _verification_summary(item: dict[str, object]) -> str:
+    parts = [str(item.get("verification_preflight", "")).strip()]
+    for field, label in (("backend_checked", "backend"), ("mailbox_checked", "mailbox"),
+                         ("public_page_checked", "public page"), ("outbound_link_checked", "outbound link")):
+        value = str(item.get(field, "")).strip()
+        if value and value.lower() not in {"not checked", "not applicable", "none"}: parts.append(f"{label}: {value}")
+    return "; ".join(p for p in parts if p) or "not checked"
 
-def audit_records(
-    campaigns: list[dict[str, object]],
-    submissions: list[dict[str, object]],
-    events: list[dict[str, object]],
-    platforms: list[dict[str, object]],
-    campaign_id: str | None = None,
-    articles: list[dict[str, object]] | None = None,
-    social_posts: list[dict[str, object]] | None = None,
-) -> dict[str, object]:
-    articles = articles or []
-    social_posts = social_posts or []
-    errors: list[str] = []
-    warnings: list[str] = []
-    selected_campaigns = [item for item in campaigns if not campaign_id or item.get("campaign_id") == campaign_id]
-    selected_submissions = [
-        item for item in submissions
-        if not campaign_id or str(item.get("campaign_id", "")) == campaign_id
-    ]
-    selected_events = [
-        item for item in events
-        if not campaign_id or str(item.get("campaign_id", "")) == campaign_id
-    ]
-    selected_articles = [
-        item for item in articles
-        if not campaign_id or str(item.get("campaign_id", "")) == campaign_id
-    ]
-    selected_social_posts = [
-        item for item in social_posts
-        if not campaign_id or str(item.get("campaign_id", "")) == campaign_id
-    ]
+def migrate_v6_records(source: dict[str, list[dict[str, str]]]) -> dict[str, list[dict[str, str]]]:
+    campaigns = [{h: str(i.get(h, "")) for h in CAMPAIGN_HEADERS} for i in source.get("Campaigns", [])]
+    platforms = [{h: str(i.get(h, "")) for h in PLATFORM_HEADERS} for i in source.get("Platforms", [])]
+    urls = {str(i.get("campaign_id", "")): str(i.get("canonical_url", "")) for i in campaigns}
+    placements: list[dict[str, str]] = []; key_map: dict[str, str] = {}
+    def add(item: dict[str, str], kind: str) -> None:
+        id_field = {"submission": "queue_id", "article": "article_id", "social": "social_post_id"}[kind]
+        identity = str(item.get(id_field, "")).strip() or str(item.get("queue_id", "")).strip()
+        placement_id = identity if kind != "submission" else f"submission-{item.get('campaign_id', '')}-{identity}"
+        public = str(item.get("public_listing_url" if kind == "submission" else "public_url", "")).strip() or "not applicable"
+        backlink = str(item.get("outbound_href", "")).strip() or str(item.get("target_url", "")).strip() or urls.get(str(item.get("campaign_id", "")), "not applicable")
+        anchor = str(item.get("anchor_text", "")).strip() or ("not applicable — image or link card" if kind == "social" else "not checked — no public backlink verified")
+        action = str(item.get("submit_timestamp" if kind == "submission" else "published_at", "")).strip() or ("unknown" if str(item.get("status")) == "published" else "not submitted")
+        r = {"platform_domain": str(item.get("platform_domain", "")), "website": str(item.get("website", "")),
+             "status": _status_from_v6(item.get("status", "")), "public_url": public, "backlink_url": backlink,
+             "anchor_text": anchor, "exact_result": str(item.get("exact_result", "")), "follow_up": str(item.get("follow_up", "")),
+             "verification": _verification_summary(item), "action_at": action, "last_checked": str(item.get("last_checked", "")),
+             "placement_id": placement_id, "queue_id": str(item.get("queue_id", "")),
+             "product_canonical_id": str(item.get("product_canonical_id", "")), "campaign_id": str(item.get("campaign_id", "")),
+             "platform_id": str(item.get("platform_id", "")), "route": str(item.get("route", "")),
+             "account_alias": str(item.get("account_alias", "")), "authorization_reference": str(item.get("authorization_reference", "")),
+             "evidence_reference": str(item.get("evidence_reference", "")), "execution_method": str(item.get("execution_method", "")),
+             "execution_notes": str(item.get("execution_notes", "")), "row_version": str(item.get("row_version", "1"))}
+        r["idempotency_key"] = computed_idempotency_key(r); r = compact_record_timestamps(r)
+        key_map[str(item.get("idempotency_key", ""))] = r["idempotency_key"]; placements.append(r)
+    for i in source.get("Submissions", []): add(i, "submission")
+    for i in source.get("Articles", []): add(i, "article")
+    for i in source.get("SocialPosts", []): add(i, "social")
+    events = []
+    for item in source.get("Events", []):
+        event = {h: str(item.get(h, "")) for h in EVENT_HEADERS}; event["idempotency_key"] = key_map.get(str(item.get("idempotency_key", "")), event["idempotency_key"])
+        events.append(compact_record_timestamps(event))
+    return {"Platforms": platforms, "Campaigns": campaigns, "Placements": placements, "Events": events}
 
-    all_record_keys: dict[str, list[tuple[str, dict[str, object]]]] = {}
-    for record_type, records in (
-        ("submission", submissions), ("article", articles), ("social", social_posts)
-    ):
-        for item in records:
-            all_record_keys.setdefault(str(item.get("idempotency_key", "")), []).append((record_type, item))
-    for key, matches in all_record_keys.items():
-        if key and len(matches) > 1:
-            errors.append(f"duplicate idempotency_key: {key}")
+def migrate_legacy_record(tab_name: str, record: dict[str, object]) -> dict[str, str]:
+    result = {h: str(record.get(h, "")) for h in SCHEMA_V6_TABLE_HEADERS.get(tab_name, [])}
+    if tab_name == "Platforms": result["platform_type"] = "directory"
+    if tab_name == "Campaigns": result.update(campaign_mode="directory", workflow_version="SPD V1 Batch")
+    if tab_name == "Events": result["record_type"] = "submission"
+    return result
 
-    article_ids: Counter[str] = Counter(str(item.get("article_id", "")) for item in articles)
-    for article_id, count in article_ids.items():
-        if article_id and count > 1:
-            errors.append(f"duplicate article_id: {article_id}")
-
-    social_post_ids: Counter[str] = Counter(
-        str(item.get("social_post_id", "")) for item in social_posts
-    )
-    for social_post_id, count in social_post_ids.items():
-        if social_post_id and count > 1:
-            errors.append(f"duplicate social_post_id: {social_post_id}")
-
-    fingerprints: dict[tuple[str, str], list[dict[str, object]]] = {}
-    for item in articles:
-        fingerprint_key = (
-            str(item.get("product_canonical_id", "")),
-            str(item.get("content_fingerprint", "")),
-        )
-        fingerprints.setdefault(fingerprint_key, []).append(item)
-    for (product_id, fingerprint), matches in fingerprints.items():
-        if product_id and fingerprint and len(matches) > 1:
-            errors.append(f"duplicate article content_fingerprint for {product_id}: {fingerprint}")
-
-    all_event_ids: Counter[str] = Counter(str(item.get("event_id", "")) for item in events)
-    for event_id, count in all_event_ids.items():
-        if event_id and count > 1:
-            errors.append(f"duplicate event_id: {event_id}")
-
-    all_campaign_ids: Counter[str] = Counter(str(item.get("campaign_id", "")) for item in campaigns)
-    for existing_campaign_id, count in all_campaign_ids.items():
-        if existing_campaign_id and count > 1:
-            errors.append(f"duplicate campaign_id: {existing_campaign_id}")
-
-    if campaign_id and not selected_campaigns:
-        errors.append(f"campaign not found: {campaign_id}")
-    campaign_map: dict[str, dict[str, object]] = {}
+def audit_records(*, campaigns: list[dict[str, object]], placements: list[dict[str, object]], events: list[dict[str, object]],
+                  platforms: list[dict[str, object]], campaign_id: str | None = None, **_: object) -> dict[str, object]:
+    errors: list[str] = []; selected_campaigns = [c for c in campaigns if not campaign_id or c.get("campaign_id") == campaign_id]
+    selected = [p for p in placements if not campaign_id or p.get("campaign_id") == campaign_id]
+    keys = {str(p.get("idempotency_key", "")) for p in selected}; selected_events = [e for e in events if str(e.get("idempotency_key", "")) in keys]
+    if campaign_id and not selected_campaigns: errors.append(f"campaign not found: {campaign_id}")
+    for name, items, key in (("campaign_id", campaigns, "campaign_id"), ("platform_id", platforms, "platform_id"), ("placement_id", placements, "placement_id"), ("event_id", events, "event_id")):
+        counts = Counter(str(i.get(key, "")) for i in items); errors.extend(f"duplicate {name}: {v}" for v, c in counts.items() if v and c > 1)
+    counts = Counter(str(i.get("idempotency_key", "")) for i in placements); errors.extend(f"duplicate idempotency_key: {v}" for v, c in counts.items() if v and c > 1)
+    cmap = {str(c.get("campaign_id", "")): c for c in selected_campaigns}; pmap = {str(p.get("platform_id", "")): p for p in platforms}
+    pairs = set(); status_counts: Counter[str] = Counter()
+    for item in selected:
+        label = f"{item.get('campaign_id', '')}/{item.get('queue_id', '')}"; pair = (str(item.get("campaign_id", "")), str(item.get("queue_id", "")))
+        if pair in pairs: errors.append(f"duplicate campaign/queue pair: {label}")
+        pairs.add(pair)
+        if pair[0] not in cmap: errors.append(f"{label}: unknown campaign_id")
+        elif str(item.get("product_canonical_id", "")) != str(cmap[pair[0]].get("product_canonical_id", "")): errors.append(f"{label}: product_canonical_id does not match campaign")
+        pid = str(item.get("platform_id", ""))
+        if pid not in pmap: errors.append(f"{label}: unknown platform_id")
+        elif str(item.get("platform_domain", "")).lower() != str(pmap[pid].get("platform_domain", "")).lower(): errors.append(f"{label}: platform_domain does not match platform")
+        try: validate_placement(item)
+        except RecordValidationError as exc: errors.append(f"{label}: {exc}")
+        status_counts[str(item.get("status", "missing"))] += 1
+    targets = {(str(e.get("campaign_id", "")), str(e.get("queue_id", "")), str(e.get("idempotency_key", ""))) for e in selected_events}; last: dict[str, datetime] = {}
+    for event in selected_events:
+        eid = str(event.get("event_id", "")); key = str(event.get("idempotency_key", "")); target = next((p for p in selected if str(p.get("idempotency_key", "")) == key), None)
+        if not target: errors.append(f"event {eid}: unknown idempotency_key")
+        elif str(target.get("campaign_id")) != str(event.get("campaign_id")) or str(target.get("queue_id")) != str(event.get("queue_id")): errors.append(f"event {eid}: campaign_id or queue_id does not match placement")
+        try:
+            validate_event(event); stamp = datetime.strptime(str(event["timestamp"]), "%Y-%m-%d %H:%M")
+            if key in last and stamp < last[key]: errors.append(f"event {eid}: timestamp moves backward")
+            last[key] = stamp
+        except RecordValidationError as exc: errors.append(f"event {eid}: {exc}")
+    for item in selected:
+        target = (str(item.get("campaign_id", "")), str(item.get("queue_id", "")), str(item.get("idempotency_key", "")))
+        if str(item.get("status")) in EXECUTED and target not in targets: errors.append(f"{target[0]}/{target[1]}: executed state requires an event")
     for item in selected_campaigns:
-        key = str(item.get("campaign_id", ""))
-        campaign_map[key] = item
-        try:
-            validate_campaign(item)
-        except RecordValidationError as exc:
-            errors.append(f"campaign {key}: {exc}")
-
-    platform_map: dict[str, dict[str, object]] = {}
+        try: validate_campaign(item)
+        except RecordValidationError as exc: errors.append(f"campaign {item.get('campaign_id', '')}: {exc}")
     for item in platforms:
-        key = str(item.get("platform_id", ""))
-        if key in platform_map:
-            errors.append(f"duplicate platform_id: {key}")
-        platform_map[key] = item
-        try:
-            validate_platform(item)
-        except RecordValidationError as exc:
-            errors.append(f"platform {key}: {exc}")
+        try: validate_platform(item)
+        except RecordValidationError as exc: errors.append(f"platform {item.get('platform_id', '')}: {exc}")
+    return {"valid": not errors, "errors": errors, "warnings": [], "total_placements": len(selected), "total_records": len(selected), "status_counts": dict(sorted(status_counts.items()))}
 
-    seen_campaign_urls: set[tuple[str, str]] = set()
-    status_counts: Counter[str] = Counter()
-    verification_counts: Counter[str] = Counter()
-    shard_counts: Counter[str] = Counter()
-    manual_queue: list[str] = []
-    queue_pairs: set[tuple[str, str]] = set()
-    for item in selected_submissions:
-        key = str(item.get("idempotency_key", ""))
-        label = f"{item.get('campaign_id', '')}/{item.get('queue_id', '')}"
-        pair = (str(item.get("campaign_id", "")), str(item.get("queue_id", "")))
-        if pair in queue_pairs:
-            errors.append(f"duplicate campaign/queue pair: {pair[0]}/{pair[1]}")
-        queue_pairs.add(pair)
-        normalized_pair = (pair[0], normalize_url(str(item.get("website", ""))))
-        if normalized_pair in seen_campaign_urls:
-            errors.append(f"duplicate normalized website in campaign: {normalized_pair[1]}")
-        seen_campaign_urls.add(normalized_pair)
-        if str(item.get("campaign_id", "")) not in campaign_map:
-            errors.append(f"{label}: unknown campaign_id")
-        elif str(item.get("product_canonical_id", "")) != str(campaign_map[pair[0]].get("product_canonical_id", "")):
-            errors.append(f"{label}: product_canonical_id does not match campaign")
-        platform_id = str(item.get("platform_id", ""))
-        if platform_id not in platform_map:
-            errors.append(f"{label}: unknown platform_id")
-        elif str(item.get("platform_domain", "")).lower() != str(
-            platform_map[platform_id].get("platform_domain", "")
-        ).lower():
-            errors.append(f"{label}: platform_domain does not match platform")
-        if str(item.get("status", "")) in EXECUTED:
-            if str(campaign_map.get(pair[0], {}).get("campaign_mode", "")) not in {"directory", "mixed"}:
-                errors.append(f"{label}: executed submission requires directory or mixed campaign mode")
-            if str(platform_map.get(platform_id, {}).get("platform_type", "")) not in {"directory", "mixed"}:
-                errors.append(f"{label}: executed submission requires directory or mixed platform type")
-        try:
-            validate_submission(item)
-        except RecordValidationError as exc:
-            errors.append(f"{label}: {exc}")
-        status = str(item.get("status", "missing"))
-        verification = str(item.get("verification_preflight", "missing"))
-        status_counts[status] += 1
-        verification_counts[verification] += 1
-        shard_counts[str(item.get("execution_shard", "missing"))] += 1
-        if verification in UNRESOLVED_VERIFICATION:
-            manual_queue.append(label)
-
-    article_status_counts: Counter[str] = Counter()
-    for item in selected_articles:
-        key = str(item.get("idempotency_key", ""))
-        label = f"{item.get('campaign_id', '')}/{item.get('queue_id', '')}"
-        pair = (str(item.get("campaign_id", "")), str(item.get("queue_id", "")))
-        if pair in queue_pairs:
-            errors.append(f"duplicate campaign/queue pair: {pair[0]}/{pair[1]}")
-        queue_pairs.add(pair)
-        if str(item.get("campaign_id", "")) not in campaign_map:
-            errors.append(f"{label}: unknown campaign_id")
-        elif str(item.get("product_canonical_id", "")) != str(campaign_map[pair[0]].get("product_canonical_id", "")):
-            errors.append(f"{label}: product_canonical_id does not match campaign")
-        platform_id = str(item.get("platform_id", ""))
-        if platform_id not in platform_map:
-            errors.append(f"{label}: unknown platform_id")
-        elif str(item.get("platform_domain", "")).lower() != str(
-            platform_map[platform_id].get("platform_domain", "")
-        ).lower():
-            errors.append(f"{label}: platform_domain does not match platform")
-        if str(item.get("status", "")) in ARTICLE_EXECUTED:
-            if str(campaign_map.get(pair[0], {}).get("campaign_mode", "")) not in {"article", "mixed"}:
-                errors.append(f"{label}: executed article requires article or mixed campaign mode")
-            if str(platform_map.get(platform_id, {}).get("platform_type", "")) not in {"article", "mixed"}:
-                errors.append(f"{label}: executed article requires article or mixed platform type")
-        try:
-            validate_article(item)
-        except RecordValidationError as exc:
-            errors.append(f"{label}: {exc}")
-        status = str(item.get("status", "missing"))
-        verification = str(item.get("verification_preflight", "missing"))
-        article_status_counts[status] += 1
-        status_counts[status] += 1
-        verification_counts[verification] += 1
-        if verification in UNRESOLVED_VERIFICATION:
-            manual_queue.append(label)
-
-    social_status_counts: Counter[str] = Counter()
-    for item in selected_social_posts:
-        label = f"{item.get('campaign_id', '')}/{item.get('queue_id', '')}"
-        pair = (str(item.get("campaign_id", "")), str(item.get("queue_id", "")))
-        if pair in queue_pairs:
-            errors.append(f"duplicate campaign/queue pair: {pair[0]}/{pair[1]}")
-        queue_pairs.add(pair)
-        if str(item.get("campaign_id", "")) not in campaign_map:
-            errors.append(f"{label}: unknown campaign_id")
-        elif str(item.get("product_canonical_id", "")) != str(campaign_map[pair[0]].get("product_canonical_id", "")):
-            errors.append(f"{label}: product_canonical_id does not match campaign")
-        platform_id = str(item.get("platform_id", ""))
-        if platform_id not in platform_map:
-            errors.append(f"{label}: unknown platform_id")
-        elif str(item.get("platform_domain", "")).lower() != str(
-            platform_map[platform_id].get("platform_domain", "")
-        ).lower():
-            errors.append(f"{label}: platform_domain does not match platform")
-        if str(item.get("status", "")) in SOCIAL_EXECUTED:
-            if str(campaign_map.get(pair[0], {}).get("campaign_mode", "")) not in {"social", "mixed"}:
-                errors.append(f"{label}: executed social post requires social or mixed campaign mode")
-            if str(platform_map.get(platform_id, {}).get("platform_type", "")) not in {"social", "mixed"}:
-                errors.append(f"{label}: executed social post requires social or mixed platform type")
-        try:
-            validate_social_post(item)
-        except RecordValidationError as exc:
-            errors.append(f"{label}: {exc}")
-        status = str(item.get("status", "missing"))
-        verification = str(item.get("verification_preflight", "missing"))
-        social_status_counts[status] += 1
-        status_counts[status] += 1
-        verification_counts[verification] += 1
-        if verification in UNRESOLVED_VERIFICATION:
-            manual_queue.append(label)
-
-    last_event_time: dict[str, datetime] = {}
-    for item in selected_events:
-        event_id = str(item.get("event_id", ""))
-        key = str(item.get("idempotency_key", ""))
-        matches = all_record_keys.get(key, [])
-        record_type = str(item.get("record_type", ""))
-        typed_matches = [record for match_type, record in matches if match_type == record_type]
-        if not typed_matches:
-            errors.append(f"event {event_id}: unknown idempotency_key")
-        elif not any(
-            str(match.get("campaign_id", "")) == str(item.get("campaign_id", ""))
-            and str(match.get("queue_id", "")) == str(item.get("queue_id", ""))
-            for match in typed_matches
-        ):
-            errors.append(f"event {event_id}: campaign_id or queue_id does not match {record_type}")
-        try:
-            validate_event(item)
-            event_time = datetime.fromisoformat(str(item["timestamp"]).replace("Z", "+00:00"))
-            if key in last_event_time and event_time < last_event_time[key]:
-                errors.append(f"event {event_id}: timestamp moves backward")
-            last_event_time[key] = event_time
-        except RecordValidationError as exc:
-            errors.append(f"event {event_id}: {exc}")
-
-    event_targets = {
-        (
-            str(item.get("record_type", "")), str(item.get("campaign_id", "")),
-            str(item.get("queue_id", "")), str(item.get("idempotency_key", "")),
-        )
-        for item in selected_events
-    }
-    for item in selected_submissions:
-        target = (
-            "submission", str(item.get("campaign_id", "")), str(item.get("queue_id", "")),
-            str(item.get("idempotency_key", "")),
-        )
-        if str(item.get("status", "")) in EXECUTED and target not in event_targets:
-            errors.append(
-                f"{item.get('campaign_id', '')}/{item.get('queue_id', '')}: executed state requires an event"
-            )
-    for item in selected_articles:
-        target = (
-            "article", str(item.get("campaign_id", "")), str(item.get("queue_id", "")),
-            str(item.get("idempotency_key", "")),
-        )
-        if str(item.get("status", "")) in ARTICLE_EXECUTED and target not in event_targets:
-            errors.append(
-                f"{item.get('campaign_id', '')}/{item.get('queue_id', '')}: executed article state requires an event"
-            )
-    for item in selected_social_posts:
-        target = (
-            "social", str(item.get("campaign_id", "")), str(item.get("queue_id", "")),
-            str(item.get("idempotency_key", "")),
-        )
-        if str(item.get("status", "")) in SOCIAL_EXECUTED and target not in event_targets:
-            errors.append(
-                f"{item.get('campaign_id', '')}/{item.get('queue_id', '')}: executed social state requires an event"
-            )
-
-    return {
-        "valid": not errors,
-        "errors": errors,
-        "warnings": warnings,
-        "total_sites": len(selected_submissions),
-        "total_articles": len(selected_articles),
-        "total_social_posts": len(selected_social_posts),
-        "total_records": len(selected_submissions) + len(selected_articles) + len(selected_social_posts),
-        "status_counts": dict(sorted(status_counts.items())),
-        "article_status_counts": dict(sorted(article_status_counts.items())),
-        "social_status_counts": dict(sorted(social_status_counts.items())),
-        "verification_counts": dict(sorted(verification_counts.items())),
-        "shard_counts": dict(sorted(shard_counts.items())),
-        "manual_verification_queue": manual_queue,
-    }
-
-
-def export_campaign_markdown(
-    campaign: dict[str, object],
-    submissions: list[dict[str, object]],
-    events: list[dict[str, object]],
-    articles: list[dict[str, object]] | None = None,
-    social_posts: list[dict[str, object]] | None = None,
-) -> str:
-    articles = articles or []
-    social_posts = social_posts or []
-    control_labels = [
-        ("Workflow version", "workflow_version"), ("Campaign mode", "campaign_mode"),
-        ("Campaign ID", "campaign_id"),
-        ("Product canonical ID", "product_canonical_id"), ("Canonical URL", "canonical_url"),
-        ("Source-list reference", "source_list_reference"),
-        ("Batch authorization reference", "batch_authorization_reference"),
-        ("Execution-shard size", "execution_shard_size"),
-        ("Policy version", "policy_version"),
-    ]
-    lines = [
-        f"# {campaign['campaign_id']} — Backlink Operations Record", "",
-        f"Last checked: {max((str(item.get('last_checked', '')) for item in submissions + articles + social_posts), default='')}",
-        "", "## Campaign controls", "",
-    ]
-    if campaign.get("workflow_version") == "SPD V1 Batch":
-        lines.append("- SPD version: V1 Batch")
-    lines.extend(f"- {label}: {campaign.get(key, '')}" for label, key in control_labels)
-    lines.extend(["", "## Source list", ""])
-    source_urls = [item.strip() for item in str(campaign.get("source_urls", "")).splitlines() if item.strip()]
-    lines.extend(f"{index}. {url}" for index, url in enumerate(source_urls, start=1))
-
-    site_labels = [
-        ("Queue ID", "queue_id"), ("Website", "website"), ("Platform domain", "platform_domain"),
-        ("Route", "route"), ("Account alias", "account_alias"),
-        ("Idempotency key", "idempotency_key"), ("Execution shard", "execution_shard"),
-        ("Execution method", "execution_method"),
-        ("Execution notes", "execution_notes"),
-        ("Legitimacy gate", "legitimacy_gate"),
-        ("Authorization reference", "authorization_reference"), ("Status", "status"),
-        ("Verification preflight", "verification_preflight"),
-        ("Fields entered", "fields_entered"), ("Fields omitted", "fields_omitted"),
-        ("Agreements/subscriptions", "agreements_subscriptions"),
-        ("Submit timestamp", "submit_timestamp"), ("Exact result", "exact_result"),
-        ("Evidence reference", "evidence_reference"),
-        ("Public listing URL", "public_listing_url"), ("Backend checked", "backend_checked"),
-        ("Mailbox checked", "mailbox_checked"), ("Public page checked", "public_page_checked"),
-        ("Last checked", "last_checked"), ("Follow-up", "follow_up"),
-    ]
-    for submission in submissions:
-        lines.extend(["", f"## {submission['queue_id']} — {submission['platform_domain']}", ""])
-        lines.extend(f"- {label}: {submission.get(key, '')}" for label, key in site_labels)
-        lines.extend(["", "### Attempt log", ""])
-        related = [item for item in events if item.get("idempotency_key") == submission.get("idempotency_key")]
-        if related:
-            for event in related:
-                lines.append(
-                    f"- {event['timestamp']} | event_id={event['event_id']} | action={event['action']} "
-                    f"| result={event['result']} | evidence={event['evidence_reference']}"
-                )
-        else:
-            lines.append("- none")
-    article_labels = [
-        ("Article ID", "article_id"), ("Queue ID", "queue_id"),
-        ("Platform domain", "platform_domain"), ("Editor URL", "website"),
-        ("Title", "title"), ("Status", "status"), ("Public URL", "public_url"),
-        ("Target URL", "target_url"), ("Anchor text", "anchor_text"),
-        ("Outbound href", "outbound_href"), ("Outbound rel", "outbound_rel"),
-        ("Exact result", "exact_result"), ("Follow-up", "follow_up"),
-        ("Verification preflight", "verification_preflight"),
-        ("Published at", "published_at"), ("Last checked", "last_checked"),
-        ("Route", "route"), ("Account alias", "account_alias"),
-        ("Idempotency key", "idempotency_key"), ("Legitimacy gate", "legitimacy_gate"),
-        ("Authorization reference", "authorization_reference"),
-        ("Evidence reference", "evidence_reference"),
-        ("Content fingerprint", "content_fingerprint"),
-        ("Canonical policy", "canonical_policy"),
-        ("Backend checked", "backend_checked"), ("Mailbox checked", "mailbox_checked"),
-        ("Public page checked", "public_page_checked"),
-        ("Outbound link checked", "outbound_link_checked"),
-        ("Execution method", "execution_method"), ("Execution notes", "execution_notes"),
-    ]
-    for article in articles:
-        lines.extend(["", f"## Article {article['queue_id']} — {article['platform_domain']}", ""])
-        lines.extend(f"- {label}: {article.get(key, '')}" for label, key in article_labels)
-        lines.extend(["", "### Attempt log", ""])
-        related = [item for item in events if item.get("idempotency_key") == article.get("idempotency_key")]
-        if related:
-            for event in related:
-                lines.append(
-                    f"- {event['timestamp']} | event_id={event['event_id']} | action={event['action']} "
-                    f"| result={event['result']} | evidence={event['evidence_reference']}"
-                )
-        else:
-            lines.append("- none")
-    social_labels = [
-        ("Social post ID", "social_post_id"), ("Queue ID", "queue_id"),
-        ("Platform domain", "platform_domain"), ("Editor URL", "website"),
-        ("Post type", "post_type"), ("Title", "title"), ("Text", "post_text"),
-        ("Status", "status"), ("Public URL", "public_url"), ("Target URL", "target_url"),
-        ("Outbound href", "outbound_href"), ("Board/channel", "board_or_channel"),
-        ("Media reference", "media_reference"), ("AI disclosure", "ai_disclosure"),
-        ("UTM source", "utm_source"), ("UTM medium", "utm_medium"),
-        ("UTM campaign", "utm_campaign"), ("Exact result", "exact_result"),
-        ("Follow-up", "follow_up"), ("Verification preflight", "verification_preflight"),
-        ("Published at", "published_at"), ("Last checked", "last_checked"),
-        ("Route", "route"), ("Account alias", "account_alias"),
-        ("Idempotency key", "idempotency_key"), ("Legitimacy gate", "legitimacy_gate"),
-        ("Authorization reference", "authorization_reference"),
-        ("Evidence reference", "evidence_reference"),
-        ("Content fingerprint", "content_fingerprint"),
-        ("Public page checked", "public_page_checked"),
-        ("Outbound link checked", "outbound_link_checked"), ("Media checked", "media_checked"),
-        ("Backend checked", "backend_checked"), ("Mailbox checked", "mailbox_checked"),
-        ("Execution method", "execution_method"), ("Execution notes", "execution_notes"),
-    ]
-    for post in social_posts:
-        lines.extend(["", f"## Social {post['queue_id']} — {post['platform_domain']}", ""])
-        lines.extend(f"- {label}: {post.get(key, '')}" for label, key in social_labels)
-        lines.extend(["", "### Attempt log", ""])
-        related = [item for item in events if item.get("idempotency_key") == post.get("idempotency_key")]
-        if related:
-            for event in related:
-                lines.append(
-                    f"- {event['timestamp']} | event_id={event['event_id']} | action={event['action']} "
-                    f"| result={event['result']} | evidence={event['evidence_reference']}"
-                )
-        else:
-            lines.append("- none")
+def export_campaign_markdown(campaign: dict[str, object], placements: list[dict[str, object]], events: list[dict[str, object]], *_: object) -> str:
+    lines = [f"# {campaign['campaign_id']} — Backlink Operations Record", "", "## Campaign", ""]
+    lines.extend(f"- {HEADER_LABELS[k]}: {campaign.get(k, '')}" for k in CAMPAIGN_HEADERS[:-1])
+    for item in placements:
+        lines.extend(["", f"## {item['queue_id']} — {item['platform_domain']}", ""])
+        lines.extend(f"- {HEADER_LABELS[k]}: {item.get(k, '')}" for k in PLACEMENT_HEADERS if k != "row_version")
+        lines.extend(["", "### Attempt log", ""]); related = [e for e in events if e.get("idempotency_key") == item.get("idempotency_key")]
+        lines.extend(f"- {e['timestamp']} | event_id={e['event_id']} | action={e['action']} | result={e['result']} | evidence={e['evidence_reference']}" for e in related)
+        if not related: lines.append("- none")
     return "\n".join(lines) + "\n"

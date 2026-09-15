@@ -34,7 +34,7 @@ This is not a one-click link-spam tool. It does not promise acceptance, dofollow
 
 Use `$submit-product-directories-v1-batch` when you already have a large set of legitimate and relevant URLs. V1 optimizes queue throughput, deduplication, verification handling, sequential execution within a browser profile, and resumability. “Batch” means batch planning and queue processing; it does not mean uncontrolled parallel submission or bypassing site limits.
 
-V1 records state through its bundled Python CLI and the Google Sheets API. A single `Backlink Operations` workbook contains `Platforms`, `Campaigns`, `Submissions`, `Articles`, and append-only `Events`. Google Sheets is authoritative; Markdown is export-only. The agent does not need to read Google Sheets connector documentation or construct spreadsheet requests.
+V1 records state through its bundled Python CLI and the Google Sheets API. A single `Backlink Operations` workbook contains `Platforms`, `Campaigns`, unified `Placements`, and append-only `Events`. Directory, article, and social results share the same placement model, centered on the actual backlink and anchor text. Google Sheets is authoritative; Markdown is export-only.
 
 Use `$submit-product-directories-v2-quality` when relevance, audience value, governance, referral potential, and listing durability matter more than volume. V2 uses small pilots of no more than 10 sites, qualifies every destination before form work, checks authorization for each consequential action, and keeps structured evidence.
 
@@ -48,7 +48,7 @@ The filename retains the team's internal “Free Backlink List” label, but not
 
 ## Writing skills
 
-`$backlink-operations-v1` routes product directories to SPD V1 and long-form destinations to the writer's `ephemeral-publish` mode. Blogger, Dev.to, Hashnode, Substack, Medium, and other eligible editors can receive distinct platform-adapted articles. The body exists only during execution; Sheets stores the title, fingerprint, operational state, public URL, and verified link result. Short social posts, pins, replies, and comments are outside the first version. Direct publication requires an explicit, unexpired batch authorization for the platform, account alias, and each of `write`, `draft`, `publish`, or `upload` being used.
+`$backlink-operations-v1` routes directories, long-form platforms, and social publishing surfaces through separate execution instructions while recording every result in one `Placements` table. Long-term records retain status, public page, actual backlink, anchor text, result, verification, and evidence—not copy, images, titles, or platform-specific fields. Direct publication still requires explicit, unexpired authorization for the platform, account, and action.
 
 The general `$writer` workflow creates and improves SEO-focused blog posts, tutorials, comparisons, listicles, explainers, FAQs, metadata, and local article packages. It covers search intent, current-claim verification, SEO auditing, audit-driven rewriting, humanization, 16:9 visuals, and optional Cloudflare R2 image delivery.
 
