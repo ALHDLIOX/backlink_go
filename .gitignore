@@ -6,6 +6,10 @@ bin-release/
 
 # Other files and folders
 .settings/
+.venv/
+__pycache__/
+*.py[cod]
+.DS_Store
 
 # Executables
 *.swf

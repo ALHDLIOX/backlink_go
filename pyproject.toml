@@ -1,0 +1,11 @@
+[project]
+name = "backlink-go-dev"
+version = "0.1.0"
+description = "Local validation environment for the backlink-go skills"
+requires-python = ">=3.11"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "PyYAML>=6.0.2",
+]
