@@ -48,3 +48,20 @@ Minimal Placement JSON:
 ```
 
 Append the Event before changing a Placement into an executed state. Updating an existing row requires `expected_row_version`. Ambiguous writes are reconciled by readback and retried at most once. Raw emails, credentials, OTPs, cookies, tokens, and sensitive URLs are forbidden.
+
+## Python module layout
+
+`scripts/sheets_record.py` remains the CLI entry point. `scripts/record_model.py` retains compatibility imports. New implementation code belongs in `scripts/backlink_records/`:
+
+- `model.py`: schema fields, states, validation, normalization, and serialization.
+- `credentials.py`: OAuth, private configuration, and the local writer lock.
+- `sheets_store.py`: Sheets CRUD and physical row addresses.
+- `formatting.py`: headers, colors, widths, filters, and frozen rows.
+- `migrations/v4_to_v8.py` through `v7_to_v8.py`: version-specific record transforms; `migrations/runner.py` applies and verifies the workbook migration.
+- `operations.py`: upserts, events, history, audit, and doctor diagnostics.
+- `reconciliation.py`: bounded write retries, readback, and conflict detection.
+- `cli.py`: argument parsing and output.
+
+Migration clears retained cell values before compacting rows, so blank source rows cannot leave stale trailing records. It reads back every migrated table before updating the local schema configuration. `doctor` can inspect schemas 4–7 and reports `migration_required`; schema 8 is current.
+
+After an ambiguous update, a retry is allowed only if the original row content and physical address remain unchanged. A successful readback ends the operation without another write; changed, moved, deleted, or duplicate rows stop with an error. Placement history uses the same domain equivalence as validation (including `www`, trailing dots, and Unicode/punycode). Privacy validation inspects every HTTP(S) URL embedded in text, including multiple links in notes.

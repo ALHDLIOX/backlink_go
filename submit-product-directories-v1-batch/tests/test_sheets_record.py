@@ -14,6 +14,7 @@ from unittest.mock import patch
 SCRIPTS = Path(__file__).parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 import record_model as MODEL  # noqa: E402
+from backlink_records import operations as OPERATIONS
 import sheets_record as SHEETS  # noqa: E402
 
 NOW = "2026-09-15 10:00"
@@ -285,7 +286,7 @@ class CliTests(unittest.TestCase):
                 "spreadsheet_id": "sheet-1",
                 "verify_schema": lambda self, version, headers: {"properties": {"title": "Legacy"}},
             })()
-            with patch.object(SHEETS, "load_store", return_value=fake_store) as load:
+            with patch.object(OPERATIONS, "load_store", return_value=fake_store) as load:
                 result = SHEETS.doctor(config_dir)
             load.assert_called_once_with(config_dir, "6")
             self.assertFalse(result["healthy"])
