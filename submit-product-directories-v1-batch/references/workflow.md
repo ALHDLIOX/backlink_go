@@ -19,6 +19,8 @@ Write the campaign with `upsert-campaign`. Google Sheets is the source of truth.
 
 ## 2. Normalize and deduplicate
 
+Before iterating over source URLs, run `placement-history --product-id PRODUCT_ID --json` once and build an in-memory index of the product's existing Placements. Reuse that index across every source URL and update it after each successful Placement readback. Do not issue one domain-scoped history query per destination. Refresh a specific domain only after an interrupted resume, an ambiguous result, a detected external workbook edit, or another concrete stale-cache signal.
+
 For every source URL:
 
 1. lowercase the hostname;
@@ -26,7 +28,7 @@ For every source URL:
 3. preserve route parameters required to reach the form only in controlled evidence;
 4. assign a stable placement ID and derive the exact idempotency key `platform_domain|product_canonical_id|account_alias|route|placement_id`;
 5. merge exact and tracking-only duplicates;
-6. use the CLI to search existing workbook records and inspect public listings before scheduling a final action.
+6. check the batch history index and inspect public listings before scheduling a final action.
 
 Assign a stable queue ID. Never renumber existing entries after execution begins.
 

@@ -17,6 +17,8 @@ uv run python scripts/sheets_record.py export-md --campaign-id CAMPAIGN_ID --out
 
 All upsert and event commands accept `--dry-run`; dry run validates without Google access. `doctor` checks OAuth, workbook identity, schema 8, and exact headers. Migration accepts schema 4 through 7, combines legacy result tabs when necessary, moves the product ID to the first Placement column, and verifies the workbook. It never treats an intended campaign target as an observed backlink; published legacy rows without outbound-link evidence become `outcome unknown` pending revalidation.
 
+For normal batch execution, call `placement-history --product-id PRODUCT_ID --json` once after `doctor` and Campaign resolution. Build an in-memory index from the returned rows, use that index for all source URLs, and update it from every successful Placement readback. `--platform-domain` is a targeted refresh for interrupted, ambiguous, or externally changed state; it is not the default per-destination lookup pattern.
+
 Minimal Placement JSON:
 
 ```json
