@@ -193,9 +193,27 @@ class WriteRegressionTests(unittest.TestCase):
         store = self.seeded()
         for stored, query in (("WWW.Example.Test.", "example.test"), ("bücher.test", "xn--bcher-kva.test")):
             store.tables["Placements"][0]["platform_domain"] = stored
-            self.assertEqual(len(operations.placement_history(store, "product-1", query)), 1)
+            history = operations.placement_history(store, "product-1", query)
+            self.assertEqual(len(history), 1)
+            self.assertEqual(list(history[0]), MODEL.PLACEMENT_HEADERS)
+            self.assertEqual(history[0]["row_version"], "1")
             self.assertEqual(operations.placement_history(store, "other", query), [])
             self.assertEqual(operations.placement_history(store, "product-1", "unrelated.test"), [])
+
+    def test_history_snapshot_can_resume_an_existing_placement(self):
+        store = self.seeded()
+        snapshot = operations.placement_history(store, "product-1")[0]
+        expected_row_version = snapshot.pop("row_version")
+        snapshot.update(
+            execution_notes="resumed from batch history",
+            expected_row_version=expected_row_version,
+        )
+
+        result = operations.upsert(store, "placement", snapshot)
+
+        self.assertEqual(result["action"], "updated")
+        self.assertEqual(result["row_version"], "2")
+        self.assertEqual(store.tables["Placements"][0]["execution_notes"], "resumed from batch history")
 
 
 class PackageRegressionTests(unittest.TestCase):

@@ -19,14 +19,16 @@ Write the campaign with `upsert-campaign`. Google Sheets is the source of truth.
 
 ## 2. Normalize and deduplicate
 
+Before iterating over source URLs, run `placement-history --product-id PRODUCT_ID --json` once and build an in-memory index of the product's existing Placements. Each result is a complete Placement snapshot with `row_version`. Reuse that index across every source URL and update it after each successful Placement readback. To update a cached row, move its `row_version` value to `expected_row_version`, remove `row_version`, and change only the intended business fields before calling `upsert-placement`. Do not issue one domain-scoped history query per destination. Refresh a specific domain only after an interrupted resume, an ambiguous result, a detected external workbook edit, or another concrete stale-cache signal.
+
 For every source URL:
 
 1. lowercase the hostname;
 2. remove fragments and tracking parameters;
 3. preserve route parameters required to reach the form only in controlled evidence;
-4. derive `platform domain | product canonical ID | account alias | route`;
+4. assign a stable placement ID and derive the exact idempotency key `platform_domain|product_canonical_id|account_alias|route|placement_id`;
 5. merge exact and tracking-only duplicates;
-6. use the CLI to search existing workbook records and inspect public listings before scheduling a final action.
+6. check the batch history index and inspect public listings before scheduling a final action.
 
 Assign a stable queue ID. Never renumber existing entries after execution begins.
 
@@ -101,7 +103,7 @@ Process eligible items sequentially within a profile:
 
 Apply the selected runtime's confirmation and handoff policy at action time. Campaign authorization cannot weaken that policy.
 
-Never retry an ambiguous final action. Append the ambiguous event, mark `submission outcome unknown`, then inspect the account backend, mailbox, and public search before any future attempt. The CLI reconciles an ambiguous Sheets API response by key before one retry; this does not authorize retrying the directory submission itself.
+Never retry an ambiguous final action. Append the ambiguous event, mark `outcome unknown`, then inspect the account backend, mailbox, and public search before any future attempt. The CLI reconciles an ambiguous Sheets API response by key before one retry; this does not authorize retrying the directory submission itself.
 
 ## 8. Recover without replay
 

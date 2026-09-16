@@ -1,280 +1,124 @@
-# Backlink Skills：用 Codex 管理外链提交与 SEO 内容生产
+# Backlink Skills: directory submissions and SEO content with Codex
 
-![Backlink Skills：Codex 驱动的 SEO 写作、目录提交与外链渠道管理](assets/backlink-skills-hero.png)
+![Backlink Skills: Codex-powered SEO writing, directory submissions, and backlink channel management](assets/backlink-skills-hero.png)
 
 [![GitHub Stars](https://img.shields.io/github/stars/flaqai/backlink_skills?style=for-the-badge&logo=github&label=Stars&color=2563eb)](https://github.com/flaqai/backlink_skills/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/flaqai/backlink_skills?style=for-the-badge&logo=github&label=Forks&color=0891b2)](https://github.com/flaqai/backlink_skills/forks)
 [![License](https://img.shields.io/github/license/flaqai/backlink_skills?style=for-the-badge&color=7c3aed)](LICENSE)
 [![Last Commit](https://img.shields.io/github/last-commit/flaqai/backlink_skills?style=for-the-badge&color=475569)](https://github.com/flaqai/backlink_skills/commits/main)
 
-> 这是 Flaq AI 团队在实际产品推广过程中整理并持续维护的一套开源工作流，包含外链渠道清单、两种产品目录提交 Skill、通用 SEO 写作 Skill，以及面向 LinkedIn、Medium 和微信公众号的定制写作 Skill。
+> An open-source collection maintained by the Flaq AI team from practical product-promotion work. It includes a public backlink candidate list, two product-directory submission skills, a general SEO writing skill, and platform-specific writing skills for LinkedIn, Medium, and WeChat.
 
-这个项目不是“一键群发外链”工具，也不承诺收录、Dofollow、流量或排名。我们希望分享的是一套更可复用的做法：让 Codex 先检查渠道，再按授权执行，遇到验证码时交给用户，提交后保留证据；需要内容时，再根据发布平台生成适合当地读者和规则的文章，而不是把同一篇 SEO 文案复制到所有网站。
+This is not a one-click link-spam tool. It does not promise acceptance, dofollow links, indexing, traffic, or rankings. The project shares a more repeatable workflow: inspect destinations first, execute only authorized actions, hand native verification to the user, preserve evidence, and create content for the actual publication instead of syndicating one generic SEO article everywhere.
 
-**语言：** [简体中文（主文档）](README.md) · [English](README_en.md) · [繁體中文](README_tw.md) · [日本語](README_ja.md) · [한국어](README_ko.md) · [ไทย](README_th.md) · [Tiếng Việt](README_vi.md) · [Bahasa Indonesia](README_id.md) · [Español](README_es.md) · [Français](README_fr.md) · [Deutsch](README_de.md) · [Italiano](README_it.md) · [Português](README_pt.md) · [Русский](README_ru.md) · [العربية](README_ar.md) · [हिन्दी](README_hi.md) · [Türkçe](README_tr.md) · [Nederlands](README_nl.md) · [Polski](README_pl.md)
+## Project growth
 
-## 项目热度与 Star 增长
+[![Recent GitHub Star growth for flaqai/backlink_skills](assets/github-stars-growth.svg)](https://github.com/flaqai/backlink_skills/stargazers)
 
-[![flaqai/backlink_skills 的 GitHub Star 近期增长趋势](assets/github-stars-growth.svg)](https://github.com/flaqai/backlink_skills/stargazers)
+## Included workflows
 
-## 项目里有什么
-
-| 内容 | 适合场景 | 核心特点 |
+| Component | Best for | Main capabilities |
 |---|---|---|
-| [`Backlink Operations V1`](backlink-operations-v1/SKILL.md) | 同一批目标里既有产品目录，也有 Blogger、Dev.to、Hashnode、Substack、Medium 等长文平台 | 自动分流目录/文章、临时写作、授权发布、统一 Google Sheets 记录与审计 |
-| [`SPD V1 Batch`](submit-product-directories-v1-batch/SKILL.md) | 已经有一批合法、相关的目录 URL，希望用 Codex 批量推进 | URL 规范化、去重、分片、验证优先、逐站提交、Google Sheets 记录、断点恢复 |
-| [`SPD V2 Quality`](submit-product-directories-v2-quality/SKILL.md) | 希望 Codex 按顺序少量提交，更重视渠道质量和长期价值 | 每批最多 10 个站点、质量门槛、逐动作授权、证据记录、发布后质量检查 |
-| [`writer`](writer/SKILL.md) | 官网博客、教程、对比、榜单、解释文等通用 SEO 内容 | 选题、提纲、事实核查、SEO 审计、改写、humanization、图片与文件打包 |
-| [`linkedin-writer`](writer/linkedin-writer/SKILL.md) | LinkedIn Article、newsletter、B2B 长文 | LinkedIn 话题研究、商务深度、专业观点、SEO 设置和发布包 |
-| [`medium-writer`](writer/medium-writer/SKILL.md) | Medium story、Publication 投稿、教程、随笔和案例 | Topic/Publication 匹配、作者视角、叙事结构、AI 披露和发布包 |
-| [`wechat-writer`](writer/wechat-writer/SKILL.md) | 微信公众号长文、教程、观点、热点解读和复盘 | 中文选题、证据账本、移动端阅读、标题摘要、审稿和微信交付包 |
-| [免费外链渠道清单](Free-backlink-list.md) | 自己筛选候选目录、社区和内容渠道 | 743 个网站分别配有中文简介，并保留批次/日期和实操备注 |
+| [`Backlink Operations V1`](backlink-operations-v1/SKILL.md) | Mixed directory and long-form publishing targets | Automatic routing, ephemeral platform-adapted writing, authorized publishing, shared Sheets audit |
+| [`SPD V1 Batch`](submit-product-directories-v1-batch/SKILL.md) | Large, prequalified URL lists | Normalize, deduplicate, shard, verification-first queues, sequential execution, Google Sheets records, recovery |
+| [`SPD V2 Quality`](submit-product-directories-v2-quality/SKILL.md) | Small quality-first campaigns | Up to 10 sites per batch, audience and SEO quality gates, action-level authorization, evidence and durability checks |
+| [`writer`](writer/SKILL.md) | General website SEO articles | Brief, outline, fact-checking, SEO audit, rewrite, humanization, images, file packaging |
+| [`linkedin-writer`](writer/linkedin-writer/SKILL.md) | LinkedIn Articles and newsletters | Topic research, business depth, thought leadership, SEO settings, publishing pack |
+| [`medium-writer`](writer/medium-writer/SKILL.md) | Medium stories and Publication submissions | Topic and Publication fit, author perspective, narrative craft, AI disclosure, publishing pack |
+| [`wechat-writer`](writer/wechat-writer/SKILL.md) | WeChat Official Account articles | Chinese topic planning, claim ledger, mobile readability, titles, digest, review, delivery pack |
+| [Backlink candidate list](Free-backlink-list.md) | Finding candidates to recheck | 743 websites with individual Chinese summaries, batch/date, and operational notes |
 
-## 两种外链提交方式
+## Choose a submission skill
 
-### 1. 用 Codex 批量推进：SPD V1 Batch
+Use `$submit-product-directories-v1-batch` when you already have a large set of legitimate and relevant URLs. V1 optimizes queue throughput, deduplication, verification handling, sequential execution within a browser profile, and resumability. “Batch” means batch planning and queue processing; it does not mean uncontrolled parallel submission or bypassing site limits.
 
-`$submit-product-directories-v1-batch` 适合已经准备好一批目标 URL，并且更关心覆盖率、处理效率和可恢复性的任务。
+V1 records state through its bundled Python CLI and the Google Sheets API. A single `Backlink Operations` workbook contains `Platforms`, `Campaigns`, unified `Placements`, and append-only `Events`. Directory, article, and social results share the same placement model, centered on the actual backlink and anchor text. Google Sheets is authoritative; Markdown is export-only.
 
-它会：
+Schema 8 uses `platform_domain|product_canonical_id|account_alias|route|placement_id` as the exact placement idempotency key. Use `outcome unknown` when a final action has an ambiguous result; do not retry that action until the account backend, authorized mailbox, and public page have been checked. A placement is `published` only after its public page and actual backlink have been reopened and verified, with the public URL, backlink URL, anchor text, exact result, verification summary, action time, last-check time, and evidence recorded. A form acknowledgment is only `submitted`, and a saved editor state is only `draft saved`.
 
-- 规范化 URL、清理追踪参数并提前去重；
-- 为站点建立稳定的队列 ID、幂等键和执行分片；
-- 先做只读检查，提前暴露登录、CAPTCHA、Turnstile、邮箱验证等人工步骤；
-- 把需要用户处理的验证集中成一个队列，不让整批任务卡在第一个验证码上；
-- 按字段长度复用已批准的产品介绍，但保持品牌、网址和事实一致；
-- 在同一浏览器配置中逐站提交，每完成一个站点就先写入结果，再移动队列游标；
-- 记录草稿、等待验证、等待审核、已发布、结果未知、失败和排除项，方便中断后继续。
+Use `$submit-product-directories-v2-quality` when relevance, audience value, governance, referral potential, and listing durability matter more than volume. V2 uses small pilots of no more than 10 sites, qualifies every destination before form work, checks authorization for each consequential action, and keeps structured evidence.
 
-V1 使用自带的 Python CLI 通过 Google Sheets API 直接维护一个 `Backlink Operations` 工作簿，包含 `Platforms`、`Campaigns`、统一的 `Placements` 和追加式 `Events`。目录、文章和社交结果使用同一张记录表，重点保存实际外链与锚文本。Google Sheets 是唯一写入源；Markdown 只作为按需导出。
+When uncertain, start with V2 on 5–10 candidates. Move a larger approved list to V1 only after the product data, authorization, and route quality are understood.
 
-“批量”指的是批量整理、分片和推进队列，不代表无节制并发，更不代表绕过网站限制。V1 仍然要求真实信息、合法渠道、授权提交和逐项留证。
+## Public backlink candidate list
 
-### 2. 用 Codex 按顺序精细提交：SPD V2 Quality
+The repository publishes the list as [Markdown](Free-backlink-list.md). It contains 743 websites or submission routes. The historical submission-status column has been removed, and every website now has an individual Chinese summary describing its likely purpose and channel type.
 
-`$submit-product-directories-v2-quality` 适合更在意受众相关性、推荐流量、条目质量、治理和长期存活率的任务。
+The filename retains the team's internal “Free Backlink List” label, but not every entry is currently free or usable. The data intentionally preserves paid, closed, unavailable, reciprocal-link, article-only, duplicate, and unverified routes. Statuses are historical source notes, not independently verified current facts. Recheck every destination before using it and never copy a historical submission status into a new product campaign.
 
-它会：
+## Writing skills
 
-- 先研究站点的真实受众、相关性、编辑治理、链接售卖、互链要求和条款兼容性；
-- 过滤低质量目录网络、只卖排名链接、强制互链、与产品无关或没有真实发现价值的站点；
-- 以小批次运行，每批最多 10 个候选站点；
-- 先完成研究与验证，再按顺序进入表单执行；
-- 对注册、填写、同意协议、上传素材和最终提交分别检查授权；
-- 为执行动作、结果、公开页面和链接属性保留结构化证据；
-- 以合格发布率、推荐访问、转化、资料准确性和存活时间衡量结果，而不是只数提交量或外链数。
+`$backlink-operations-v1` routes directories, long-form platforms, and social publishing surfaces through separate execution instructions while recording every result in one `Placements` table. Long-term records retain status, public page, actual backlink, anchor text, result, verification, and evidence—not copy, images, titles, or platform-specific fields. Direct publication still requires explicit, unexpired authorization for the platform, account, and action.
 
-简单选择：已有大量已筛选 URL，优先 V1；候选不多、品牌要求高，优先 V2。拿不准时先用 V2 做小批次验证，再决定是否扩大到 V1。
+The general `$writer` workflow creates and improves SEO-focused blog posts, tutorials, comparisons, listicles, explainers, FAQs, metadata, and local article packages. It covers search intent, current-claim verification, SEO auditing, audit-driven rewriting, humanization, 16:9 visuals, and optional Cloudflare R2 image delivery.
 
-## 免费外链渠道清单
+The platform skills use distinct editorial logic:
 
-仓库开源了我们整理、尝试或待核验的候选渠道：
+- `$linkedin-writer` creates professional long-form content, newsletters, business insight maps, LinkedIn SEO settings, discussion design, and a native publishing pack.
+- `$medium-writer` works with Medium Topics and Publications, author-supplied experience, narrative structure, image labeling, responsible AI disclosure, and a Medium publishing pack.
+- `$wechat-writer` creates Chinese WeChat articles with a claim-source ledger, mobile-first structure, titles and digest, editorial review, image planning, and a WeChat delivery pack.
 
-- [Free-backlink-list.md](Free-backlink-list.md) 包含 **743 个网站或提交入口**；
-- 清单已经移除历史提交状态，避免把其他产品的执行结果误用到新任务；
-- 每个网站都补充了独立的中文简介，说明它大致属于产品目录、AI 工具导航、创业社区、软件评测、内容平台、企业目录或表单入口中的哪一类；
-- 备注保留了批次/日期、收费提示、验证问题和历史实操结果；无来源、无月份的旧流量数字已经移除。
+Writing a local article and publishing it externally are separate actions. These skills do not publish merely because the user asks to write an article.
 
-文件名沿用了团队内部的“Free Backlink List”叫法，但不能把其中每一条都理解为“当前可免费提交”。清单里明确包含已经停服、入口关闭、需要付费、要求互链、只适合发文章、重复或尚未验证的渠道。网站规则和可用性会变化，使用前应让 Codex 重新检查，而不是直接照表群发。
+## Use with Codex
 
-推荐用法：
+Codex skills preserve reusable instructions, resources, and scripts and can be invoked with `$skill-name`. See the [official OpenAI Codex skills use case](https://learn.chatgpt.com/use-cases/reusable-codex-skills).
 
-1. 先按产品类型、目标市场和发布形式筛选候选项；
-2. 用 V2 对前 5–10 个站点做质量和合规检查；
-3. 确认资料、账号和授权后，再决定逐站执行或将合格 URL 交给 V1 批量推进；
-4. 把新的结果记录在独立任务记录中，不要把清单备注直接当成当前事实。
+Clone this repository and let Codex read the relevant folder, or copy only the skill directories you need into a Codex-discoverable Skills directory. Treat each folder with its own `SKILL.md` as a separate skill.
 
-## SEO 写作能力
-
-### 目录与长文平台统一执行
-
-`$backlink-operations-v1` 会判断目标是产品目录、长文平台还是社交发布面。三条路线各自执行，但统一写入 `Placements`；长期记录只保留状态、公开页面、实际外链、锚文本、结果、核验与证据，不维护正文、图片、标题或平台专用字段。
-
-批次授权只有明确列出平台、账号别名、有效期以及 `write`、`draft`、`publish`、`upload` 动作时，才允许执行对应动作。已发布文章必须重新打开公开页面并核验实际锚文本、`href`、UTM 和 `rel`。
-
-### 通用 SEO Writer
-
-[`writer/SKILL.md`](writer/SKILL.md) 面向官网博客和搜索型长文，支持：
-
-- 从任务卡、搜索意图和关键词开始设计文章；
-- 生成 How-to、对比、榜单、解释文、FAQ、SEO 标题、摘要、Meta Description 和标签；
-- 核查产品能力、价格、日期、统计、政策和比较性主张；
-- 执行结构化 SEO 审计，再根据问题改写；
-- 在事实和 SEO 修正后进行 humanization，减少模板化、宣传腔和机械表达；
-- 生成或规划 16:9 配图，默认使用本地相对路径；
-- 把文章、审计和图片保存到 `writer/output/<article-slug>/`；
-- 本地配置有效时可选上传图片到 Cloudflare R2；没有配置也能完整交付。
-
-### 针对发布网站定制的 Writer
-
-这些子 Skill 不是简单换一个输出目录，而是按平台重新设计选题、结构、审核和交付：
-
-- **LinkedIn Writer**：面向职业读者、B2B 决策和 thought leadership，补充 LinkedIn/Google-to-LinkedIn 话题研究、商务洞察、讨论设计、Article/newsletter 选择、SEO 设置和发布包。
-- **Medium Writer**：面向 Medium 的 Topic 与 Publication 生态，强调作者真实经验、叙事连续性、Publication 匹配、图片标注、AI 辅助披露和读者分发准备。
-- **WeChat Writer**：面向微信公众号中文阅读场景，强调标题摘要、主张—证据账本、适合手机的段落、账号语气、审稿、配图方案和发布附录。
-
-这些 Skill 默认生成本地成稿或发布包，不会因为“写一篇文章”就自动登录和发布。外部发布、账号操作、图片上传等仍是独立授权动作。
-
-## 在 Codex 中使用
-
-Codex Skills 用于保存可重复使用的说明、资料和脚本；调用时可以直接写 `$skill-name`。可参考 [OpenAI 官方的 Codex Skills 用例](https://learn.chatgpt.com/use-cases/reusable-codex-skills)。
-
-你可以克隆本仓库后让 Codex 直接读取相应目录，也可以只把需要的 Skill 目录复制到 Codex 可发现的 Skills 目录。不要把整个仓库当成一个 Skill：两个提交版本和四个写作入口有各自独立的 `SKILL.md`。
-
-使用前建议准备：
-
-- 产品名、规范官网 URL、定位与目标用户；
-- 短、中、长三个版本的真实产品介绍；
-- 分类、价格、上线时间、公司/创始人等可公开且已核实的信息；
-- Logo、截图等允许上传的素材；
-- 账号和联系信息的别名，不要把密码、OTP、Cookie 或恢复码写入任务记录；
-- 哪些动作允许自动执行，哪些必须先询问，哪些禁止；
-- 目标 URL 列表或从免费清单中筛出的候选项。
-
-### 批量提交示例
+Example:
 
 ```text
-使用 $submit-product-directories-v1-batch 处理我提供的目录 URL。
-先规范化、去重并建立执行分片；先检查登录和验证码，把人工步骤集中成队列。
-只使用已确认的产品资料，不付费、不添加互链、不绕过验证。
-每个站点完成后立即记录证据，结果不明确时不要重试。
+Use $submit-product-directories-v2-quality to select no more than 10 relevant
+candidates from Free-backlink-list.md. Run the quality, duplicate, verification,
+and authorization checks first, then process eligible sites sequentially.
+Do not pay, add reciprocal links, bypass verification, or retry an ambiguous
+final submission. Save an auditable record.
 ```
-
-### 目录与文章混合示例
 
 ```text
-使用 $backlink-operations-v1 处理这些目标网址。产品目录走 SPD V1；
-长文平台使用临时 writer 工作流，按平台受众选择不重复主题。
-只执行批次授权明确允许的写作、草稿、发布和上传动作，
-所有结果通过自带 CLI 记录到同一个 Google Sheets 工作簿。
+Use $writer to create an SEO comparison article for SaaS founders. Verify current
+claims, then complete the outline, article, SEO audit, rewrite, humanization,
+and local image plan. Save the article package and do not publish it.
 ```
-
-V1 首次使用前需要启用 Google Sheets API、创建桌面 OAuth 客户端并执行：
-
-```bash
-uv sync --dev
-uv run python submit-product-directories-v1-batch/scripts/sheets_record.py auth --client-secret /approved/path/client-secret.json
-uv run python submit-product-directories-v1-batch/scripts/sheets_record.py init --title "Backlink Operations"
-uv run python submit-product-directories-v1-batch/scripts/sheets_record.py doctor
-```
-
-OAuth 文件和工作簿配置保存在当前项目的 `.backlink-go/runtime/`，该目录由 Git 忽略。
-
-### 按顺序精细提交示例
 
 ```text
-使用 $submit-product-directories-v2-quality，从 Free-backlink-list.md 中筛选
-与我们的 AI 视频产品最相关的候选渠道。先选不超过 10 个站点，完成质量门槛、
-重复检查和授权检查，再按顺序提交。低质量、强制互链、付费买链接或仅宣传排名
-价值的站点直接排除。保存可审计记录，不要自动发布文章或社区帖子。
+Use $backlink-operations-v1 to classify these authorized URLs. Route directories
+to SPD V1 and long-form platforms to ephemeral, platform-adapted writing. Use only
+the authorized write, draft, publish, and upload actions, and record every result
+through the bundled Google Sheets CLI.
 ```
 
-### 通用 SEO 文章示例
-
-```text
-使用 $writer 写一篇面向 SaaS 创业者的中文 SEO 对比文章。
-先确认搜索意图和需要核实的主张，完成提纲、正文、SEO 审计和 humanization，
-输出 article.md、seo-audit.md 和配图方案，不自动发布。
-```
-
-### 平台定制文章示例
-
-```text
-使用 $linkedin-writer 写一篇面向 B2B 产品负责人的 LinkedIn Article，
-围绕“如何评估 AI Agent 是否适合进入生产环境”。完成话题研究、商务洞察、
-事实核查、最终去机械化编辑和 LinkedIn 发布包，不自动发布。
-```
-
-将 `$linkedin-writer` 换成 `$medium-writer` 或 `$wechat-writer`，即可进入对应平台的工作流。
-
-## 状态、证据与人工接管
-
-外链提交不是“点击按钮就算成功”。两套提交 Skill 都会区分：
-
-- `submitted`：有可靠回执或已发送邮件证据；
-- `awaiting email verification`：等待用户完成邮箱验证；
-- `awaiting approval`：网站明确表示进入审核；
-- `published`：公开、非预览页面中能看到正确的产品身份；
-- `submission outcome unknown`：执行过最终操作但回执不确定，调查前不能重试；
-- `submission failed`：存在明确拒绝、退信或可靠失败证据；
-- `ineligible` / `unavailable`：不适合当前产品或当前无法使用。
-
-CAPTCHA、Turnstile、2FA、Passkey、邮箱/手机验证等必须由网站原生流程或用户完成。Skill 不使用验证码代答、隐身浏览、代理轮换或指纹规避。
-
-## 仓库结构
+## Repository layout
 
 ```text
 .
-├── README.md                         # 中文主文档
-├── README_en.md                      # English
-├── README_*.md                       # 其他语言基础说明
-├── Free-backlink-list.md             # 免费外链候选清单（Markdown）
-├── assets/                           # README 主视觉与 Star 趋势图
-├── backlink-operations-v1/          # 目录与长文发布总控 Skill
+├── README.md
+├── Free-backlink-list.md
+├── assets/                           # README hero and Star trend chart
+├── backlink-operations-v1/
 ├── submit-product-directories-v1-batch/
-│   ├── SKILL.md
-│   ├── agents/openai.yaml
-│   ├── assets/
-│   ├── references/
-│   ├── scripts/
-│   └── tests/
 ├── submit-product-directories-v2-quality/
-│   ├── SKILL.md
-│   ├── agents/openai.yaml
-│   ├── assets/
-│   ├── references/
-│   ├── scripts/
-│   └── tests/
 └── writer/
     ├── SKILL.md
     ├── linkedin-writer/
     ├── medium-writer/
-    ├── wechat-writer/
-    ├── references/
-    ├── scripts/
-    └── config/
+    └── wechat-writer/
 ```
 
-## 校验与测试
+## Safety and limits
 
-两个外链提交 Skill 都带有记录审计脚本和测试。V1 审计 Google Sheets 中的权威记录，V2 目前仍审计 Markdown：
+- Do not use the project for link spam, ranking manipulation, invented profiles, paid-link acquisition, forced reciprocal links, or prohibited automation.
+- Never bypass CAPTCHA, Turnstile, 2FA, passkeys, email verification, or similar safeguards.
+- Account creation, a saved draft, a click, or a redirect is not proof of publication.
+- An ambiguous final action must be investigated before any retry.
+- Measure relevant discovery, referrals, conversion, profile accuracy, and listing survival—not only submission or backlink counts.
 
-```bash
-uv run python submit-product-directories-v1-batch/scripts/sheets_record.py audit --campaign-id CAMPAIGN_ID
-python3 submit-product-directories-v2-quality/scripts/audit_submission_record.py path/to/v2-record.md
+## About Flaq.ai
 
-python3 -m unittest discover -s submit-product-directories-v1-batch/tests
-python3 -m unittest discover -s submit-product-directories-v2-quality/tests
-```
+[Flaq.ai](https://flaq.ai/) provides unified API access to image, video, music, and language models for AI agents and production applications. We maintain this repository to share practical, auditable, and reusable Codex workflows.
 
-LinkedIn、Medium 和微信公众号 Writer 还分别带有 Markdown 机械审计脚本，用于发现确定性的结构、发布包和可读性问题。脚本不能替代事实核查、人工编辑或平台审核。
-
-## 使用边界
-
-- 不用于批量垃圾外链、排名操纵、虚假资料、付费买链接或强制互链。
-- 不保证任何站点接受、发布、索引或保留条目。
-- 不保证 Dofollow、DA/DR、PageRank、流量或关键词排名。
-- 不绕过网站的安全、验证、付费或条款限制。
-- 不把历史清单状态当作当前事实，执行前必须重新检查。
-- 不把目录提交量当成 SEO 效果；更应关注相关性、推荐访问、转化和条目存活。
-
-## 参与维护
-
-欢迎提交 Issue 或 Pull Request，尤其是：
-
-- 新的合法产品目录和公开提交入口；
-- 已失效、改为收费或修改规则的渠道；
-- 更准确的分类、验证要求和提交备注；
-- 外链提交 Skill 的兼容性、审计器和恢复流程改进；
-- SEO Writer 与平台定制 Writer 的真实使用反馈。
-
-请不要提交密码、OTP、Cookie、私有邮箱、会话链接或任何无法公开的活动证据。
-
-## 关于 Flaq.ai
-
-[Flaq.ai](https://flaq.ai/zh/) 为 AI Agent 和生产应用提供图片、视频、音乐及语言模型的统一 API 接入。我们开源这个项目，是希望把实际推广中反复使用的渠道资料、执行流程和写作方法整理成可检查、可复用、可继续改进的 Codex Skills。
-
-相关项目：[Awesome Codex Skills](https://github.com/flaqai/awesome_codex_skills) · [Awesome Claude Code Skills](https://github.com/flaqai/awesome_claude_code_skills)
+Related: [Awesome Codex Skills](https://github.com/flaqai/awesome_codex_skills) · [Awesome Claude Code Skills](https://github.com/flaqai/awesome_claude_code_skills)
 
 ## License
 
