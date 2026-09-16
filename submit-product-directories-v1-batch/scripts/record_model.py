@@ -38,6 +38,7 @@ from backlink_records.model import (
     LEGACY_TABLE_HEADERS,
     SCHEMA_V5_TABLE_HEADERS,
     HEADER_LABELS,
+    SCHEMA_V7_HEADER_LABELS,
     LEGACY_HEADER_LABELS,
     DROPDOWNS,
     RecordValidationError,

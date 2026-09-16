@@ -16,6 +16,13 @@ DEFAULT_TITLE = "Backlink Operations"
 METADATA_KEY = "spd_v1_schema_version"
 
 
+CENTERED_BODY_COLUMNS = {
+    "Platforms": ("website_name", "platform_domain", "row_version"),
+    "Campaigns": ("product_canonical_id", "execution_shard_size", "row_version"),
+    "Placements": ("product_canonical_id", "platform_domain", "row_version"),
+}
+
+
 COLOR_GREEN = ({"red": 0.91, "green": 0.97, "blue": 0.93}, {"red": 0.12, "green": 0.38, "blue": 0.23})
 
 
@@ -226,11 +233,15 @@ def readable_format_requests(properties: dict[str, dict[str, Any]]) -> list[dict
                                     "bold": True,
                                     "foregroundColor": {"red": 0.12, "green": 0.16, "blue": 0.22},
                                 },
+                                "horizontalAlignment": "CENTER",
                                 "verticalAlignment": "MIDDLE",
                                 "wrapStrategy": "WRAP",
                             }
                         },
-                        "fields": "userEnteredFormat(backgroundColor,textFormat,verticalAlignment,wrapStrategy)",
+                        "fields": (
+                            "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,"
+                            "verticalAlignment,wrapStrategy)"
+                        ),
                     }
                 },
                 {
@@ -273,6 +284,22 @@ def readable_format_requests(properties: dict[str, dict[str, Any]]) -> list[dict
                         },
                         "properties": {"pixelSize": width},
                         "fields": "pixelSize",
+                    }
+                }
+            )
+        for header in CENTERED_BODY_COLUMNS.get(tab_name, ()):
+            column_index = headers.index(header)
+            requests.append(
+                {
+                    "repeatCell": {
+                        "range": {
+                            "sheetId": sheet_id,
+                            "startRowIndex": 1,
+                            "startColumnIndex": column_index,
+                            "endColumnIndex": column_index + 1,
+                        },
+                        "cell": {"userEnteredFormat": {"horizontalAlignment": "CENTER"}},
+                        "fields": "userEnteredFormat.horizontalAlignment",
                     }
                 }
             )

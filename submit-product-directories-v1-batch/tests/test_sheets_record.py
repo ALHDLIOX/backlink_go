@@ -72,7 +72,9 @@ class MemoryStore:
 class SchemaTests(unittest.TestCase):
     def test_schema_is_four_readable_sheets(self):
         self.assertEqual(list(MODEL.TABLE_HEADERS), ["Platforms", "Campaigns", "Placements", "Events"])
-        self.assertEqual(MODEL.display_headers("Placements")[:7], ["产品编号", "平台域名", "操作页面", "状态", "公开页面", "实际外链", "锚文本"])
+        self.assertEqual(MODEL.display_headers("Placements")[:7], [
+            "Product ID", "Platform Domain", "Action Page", "Status", "Public URL", "Backlink URL", "Anchor Text",
+        ])
         body = SHEETS.workbook_create_body("Backlink Operations")
         self.assertEqual(len(body["sheets"]), 4)
         self.assertTrue(all(s["properties"]["gridProperties"]["frozenRowCount"] == 1 for s in body["sheets"]))
@@ -118,7 +120,7 @@ class SchemaTests(unittest.TestCase):
             if "updateCells" in item and item["updateCells"]["range"]["sheetId"] == props["Placements"]["sheetId"]
         )
         first_header = placement_update["rows"][0]["values"][0]["userEnteredValue"]["stringValue"]
-        self.assertEqual(first_header, "产品编号")
+        self.assertEqual(first_header, "Product ID")
 
 class ValidationTests(unittest.TestCase):
     def test_timestamp_is_compact(self):
@@ -261,7 +263,7 @@ class StoreTests(unittest.TestCase):
         result = SHEETS.workbook_audit(store, "campaign-1")
         self.assertTrue(result["valid"]); self.assertEqual(result["total_placements"], 1)
         text = MODEL.export_campaign_markdown(store.tables["Campaigns"][0], [queued], [])
-        self.assertIn("锚文本", text); self.assertNotIn("Content fingerprint", text)
+        self.assertIn("Anchor Text", text); self.assertNotIn("Content fingerprint", text)
 
     def test_audit_reports_orphan_events_before_key_filtering(self):
         store = self.seeded()

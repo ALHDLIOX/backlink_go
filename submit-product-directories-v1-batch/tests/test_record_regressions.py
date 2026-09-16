@@ -36,7 +36,11 @@ class GridStore(GoogleSheetsStore):
         self.props = {tab: {"sheetId": i, "title": tab, "gridProperties": {
             "rowCount": 1000, "columnCount": len(fields), "frozenRowCount": 1}}
             for i, (tab, fields) in enumerate(headers.items(), 1)}
-        labels = MODEL.HEADER_LABELS if version == "7" else MODEL.LEGACY_HEADER_LABELS
+        labels = (
+            MODEL.HEADER_LABELS if version == MODEL.SCHEMA_VERSION else
+            MODEL.SCHEMA_V7_HEADER_LABELS if version == "7" else
+            MODEL.LEGACY_HEADER_LABELS
+        )
         self.grid = {tab: [[labels[h] for h in fields], [], *[
             MODEL.row_values(fields, row) for row in records.get(tab, [])]]
             for tab, fields in headers.items()}

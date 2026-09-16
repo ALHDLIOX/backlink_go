@@ -152,7 +152,7 @@ SCHEMA_V5_TABLE_HEADERS = {"Platforms": SCHEMA_V6_PLATFORM_HEADERS, "Campaigns":
     "Events": SCHEMA_V6_EVENT_HEADERS}
 
 
-HEADER_LABELS = {
+LEGACY_HEADER_LABELS = {
     "website_name": "平台名称", "platform_domain": "平台域名", "canonical_submission_url": "标准入口",
     "availability": "可用状态", "cost_model": "收费模式", "account_required": "需要账号",
     "verification_pattern": "验证方式", "reciprocal_requirement": "互链要求", "last_verified_at": "最后核验",
@@ -170,7 +170,7 @@ HEADER_LABELS = {
     "timestamp": "事件时间", "action": "动作", "result": "结果", "actor_alias": "操作者别名"}
 
 
-HEADER_LABELS.update({
+LEGACY_HEADER_LABELS.update({
     "platform_type": "平台类型", "campaign_mode": "活动类型", "spd_version": "SPD 版本",
     "record_type": "记录类型", "legitimacy_gate": "合规性检查", "verification_preflight": "验证预检",
     "fields_entered": "已填写字段", "fields_omitted": "未填写字段", "agreements_subscriptions": "协议与订阅",
@@ -184,7 +184,8 @@ HEADER_LABELS.update({
     "utm_source": "UTM 来源", "utm_medium": "UTM 媒介", "utm_campaign": "UTM 活动", "media_checked": "图片 / 媒体检查",
 })
 
-LEGACY_HEADER_LABELS = dict(HEADER_LABELS)
+
+SCHEMA_V7_HEADER_LABELS = dict(LEGACY_HEADER_LABELS)
 
 
 LEGACY_HEADER_LABELS.update({
@@ -194,6 +195,44 @@ LEGACY_HEADER_LABELS.update({
     "evidence_reference": "证据编号", "last_checked": "最后检查时间", "public_url": "公开文章网址",
     "anchor_text": "实际锚文本", "action": "操作", "result": "操作结果",
 })
+
+
+HEADER_LABELS = {
+    "website_name": "Platform Name", "platform_domain": "Platform Domain",
+    "canonical_submission_url": "Canonical Submission URL", "availability": "Availability",
+    "cost_model": "Cost Model", "account_required": "Account Required",
+    "verification_pattern": "Verification Pattern", "reciprocal_requirement": "Reciprocal Requirement",
+    "last_verified_at": "Last Verified", "route": "Route", "source": "Source", "notes": "Notes",
+    "platform_id": "Platform ID", "row_version": "Row Version",
+    "product_canonical_id": "Product ID", "canonical_url": "Product URL",
+    "campaign_id": "Campaign ID", "source_urls": "Source URLs",
+    "source_list_reference": "Source List Reference",
+    "batch_authorization_reference": "Batch Authorization Reference",
+    "execution_shard_size": "Execution Shard Size", "policy_version": "Policy Version",
+    "workflow_version": "Workflow Version", "website": "Action Page", "status": "Status",
+    "public_url": "Public URL", "backlink_url": "Backlink URL", "anchor_text": "Anchor Text",
+    "exact_result": "Exact Result", "follow_up": "Follow-up", "verification": "Verification",
+    "action_at": "Action Time", "last_checked": "Last Checked", "placement_id": "Placement ID",
+    "queue_id": "Queue ID", "account_alias": "Account Alias",
+    "idempotency_key": "Idempotency Key", "authorization_reference": "Authorization Reference",
+    "evidence_reference": "Evidence Reference", "execution_method": "Execution Method",
+    "execution_notes": "Execution Notes", "event_id": "Event ID", "timestamp": "Event Time",
+    "action": "Action", "result": "Result", "actor_alias": "Actor Alias",
+    "platform_type": "Platform Type", "campaign_mode": "Campaign Mode", "spd_version": "SPD Version",
+    "record_type": "Record Type", "legitimacy_gate": "Legitimacy Gate",
+    "verification_preflight": "Verification Preflight", "fields_entered": "Fields Entered",
+    "fields_omitted": "Fields Omitted", "agreements_subscriptions": "Agreements and Subscriptions",
+    "submit_timestamp": "Submission Time", "public_listing_url": "Public Listing URL",
+    "backend_checked": "Backend Checked", "mailbox_checked": "Mailbox Checked",
+    "public_page_checked": "Public Page Checked", "execution_shard": "Execution Shard",
+    "article_id": "Article ID", "title": "Title", "target_url": "Target URL",
+    "outbound_href": "Outbound URL", "outbound_rel": "Outbound rel", "published_at": "Published At",
+    "content_fingerprint": "Content Fingerprint", "canonical_policy": "Canonical Policy",
+    "outbound_link_checked": "Outbound Link Checked", "social_post_id": "Social Post ID",
+    "post_type": "Post Type", "post_text": "Post Text", "board_or_channel": "Board or Channel",
+    "media_reference": "Media Reference", "ai_disclosure": "AI Disclosure", "utm_source": "UTM Source",
+    "utm_medium": "UTM Medium", "utm_campaign": "UTM Campaign", "media_checked": "Media Checked",
+}
 
 DROPDOWNS = {("Platforms", "availability"): ["available", "unavailable", "unknown"],
     ("Platforms", "cost_model"): sorted(ALLOWED_COST_MODELS),
