@@ -24,7 +24,7 @@ For every source URL:
 1. lowercase the hostname;
 2. remove fragments and tracking parameters;
 3. preserve route parameters required to reach the form only in controlled evidence;
-4. derive `platform domain | product canonical ID | account alias | route`;
+4. assign a stable placement ID and derive the exact idempotency key `platform_domain|product_canonical_id|account_alias|route|placement_id`;
 5. merge exact and tracking-only duplicates;
 6. use the CLI to search existing workbook records and inspect public listings before scheduling a final action.
 
@@ -101,7 +101,7 @@ Process eligible items sequentially within a profile:
 
 Apply the selected runtime's confirmation and handoff policy at action time. Campaign authorization cannot weaken that policy.
 
-Never retry an ambiguous final action. Append the ambiguous event, mark `submission outcome unknown`, then inspect the account backend, mailbox, and public search before any future attempt. The CLI reconciles an ambiguous Sheets API response by key before one retry; this does not authorize retrying the directory submission itself.
+Never retry an ambiguous final action. Append the ambiguous event, mark `outcome unknown`, then inspect the account backend, mailbox, and public search before any future attempt. The CLI reconciles an ambiguous Sheets API response by key before one retry; this does not authorize retrying the directory submission itself.
 
 ## 8. Recover without replay
 
