@@ -19,7 +19,7 @@ Write the campaign with `upsert-campaign`. Google Sheets is the source of truth.
 
 ## 2. Normalize and deduplicate
 
-Before iterating over source URLs, run `placement-history --product-id PRODUCT_ID --json` once and build an in-memory index of the product's existing Placements. Reuse that index across every source URL and update it after each successful Placement readback. Do not issue one domain-scoped history query per destination. Refresh a specific domain only after an interrupted resume, an ambiguous result, a detected external workbook edit, or another concrete stale-cache signal.
+Before iterating over source URLs, run `placement-history --product-id PRODUCT_ID --json` once and build an in-memory index of the product's existing Placements. Each result is a complete Placement snapshot with `row_version`. Reuse that index across every source URL and update it after each successful Placement readback. To update a cached row, move its `row_version` value to `expected_row_version`, remove `row_version`, and change only the intended business fields before calling `upsert-placement`. Do not issue one domain-scoped history query per destination. Refresh a specific domain only after an interrupted resume, an ambiguous result, a detected external workbook edit, or another concrete stale-cache signal.
 
 For every source URL:
 

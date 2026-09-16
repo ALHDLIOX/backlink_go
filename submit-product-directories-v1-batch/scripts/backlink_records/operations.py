@@ -277,7 +277,7 @@ def placement_history(
         selected.append(
             {
                 key: item.get(key, "")
-                for key in ("placement_id", "platform_domain", "status", "public_url", "backlink_url", "anchor_text", "last_checked", "campaign_id")
+                for key in PLACEMENT_HEADERS
             }
         )
     return selected
