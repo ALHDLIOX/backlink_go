@@ -4,7 +4,7 @@ from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from backlink_records.credentials import read_json_file, require_private_file
+from backlink_records.credentials import build_gmail_service, read_json_file, require_private_file
 from backlink_records.model import (
     CAMPAIGN_HEADERS,
     EVENT_HEADERS,
@@ -83,32 +83,53 @@ def audit_records(*, campaigns: list[dict[str, object]], placements: list[dict[s
     return {"valid": not errors, "errors": errors, "warnings": [], "total_placements": len(selected), "total_records": len(selected), "status_counts": dict(sorted(status_counts.items()))}
 
 
-def doctor(config_dir: Path) -> dict[str, object]:
-    config_path = config_dir / "v1-sheets.json"
-    require_private_file(config_path)
-    config = read_json_file(config_path)
-    schema_version = str(config.get("schema_version", ""))
-    table_headers = {
-        LEGACY_SCHEMA_VERSION: LEGACY_TABLE_HEADERS,
-        "5": SCHEMA_V5_TABLE_HEADERS,
-        "6": SCHEMA_V6_TABLE_HEADERS,
-        PREVIOUS_SCHEMA_VERSION: SCHEMA_V7_TABLE_HEADERS,
-        SCHEMA_VERSION: TABLE_HEADERS,
-    }.get(schema_version)
-    if table_headers is None:
-        raise RecordValidationError("workbook config is invalid or unsupported")
-    store = load_store(config_dir, schema_version)
-    metadata = store.verify_schema(schema_version, table_headers)
-    current = schema_version == SCHEMA_VERSION
-    return {
-        "healthy": current,
-        "migration_required": not current,
-        "spreadsheet_id": store.spreadsheet_id,
-        "title": metadata.get("properties", {}).get("title", ""),
-        "schema_version": schema_version,
+def doctor(config_dir: Path, gmail_service: Any | None = None) -> dict[str, object]:
+    errors: list[str] = []
+    output: dict[str, object] = {
+        "healthy": False,
+        "migration_required": False,
+        "sheets": "error",
+        "gmail": "error",
+        "errors": errors,
         "target_schema_version": SCHEMA_VERSION,
-        "worksheets": list(table_headers),
     }
+    try:
+        config_path = config_dir / "v1-sheets.json"
+        require_private_file(config_path)
+        config = read_json_file(config_path)
+        schema_version = str(config.get("schema_version", ""))
+        table_headers = {
+            LEGACY_SCHEMA_VERSION: LEGACY_TABLE_HEADERS,
+            "5": SCHEMA_V5_TABLE_HEADERS,
+            "6": SCHEMA_V6_TABLE_HEADERS,
+            PREVIOUS_SCHEMA_VERSION: SCHEMA_V7_TABLE_HEADERS,
+            SCHEMA_VERSION: TABLE_HEADERS,
+        }.get(schema_version)
+        if table_headers is None:
+            raise RecordValidationError("workbook config is invalid or unsupported")
+        store = load_store(config_dir, schema_version)
+        metadata = store.verify_schema(schema_version, table_headers)
+        current = schema_version == SCHEMA_VERSION
+        output.update({
+            "migration_required": not current,
+            "sheets": "ok",
+            "spreadsheet_id": store.spreadsheet_id,
+            "title": metadata.get("properties", {}).get("title", ""),
+            "schema_version": schema_version,
+            "worksheets": list(table_headers),
+        })
+    except Exception:
+        errors.append("Sheets check failed; verify the workbook config and run auth --replace if needed")
+
+    try:
+        service = gmail_service or build_gmail_service(config_dir)
+        service.users().getProfile(userId="me").execute()
+        output["gmail"] = "ok"
+    except Exception:
+        errors.append("Gmail check failed; enable Gmail API and run auth --replace if needed")
+
+    output["healthy"] = output["sheets"] == "ok" and output["gmail"] == "ok" and not output["migration_required"]
+    return output
 
 
 def upsert(store: GoogleSheetsStore, kind: str, payload: dict[str, Any]) -> dict[str, str]:

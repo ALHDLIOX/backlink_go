@@ -23,7 +23,7 @@ Start with this entrypoint. Do not preload every reference or every file in the 
 4. Load [references/browser-control-routing.md](references/browser-control-routing.md) only when the current environment has no already verified browser binding, the user changes the requested surface, the environment changes, or the active binding fails. Reuse a verified binding within the batch.
 5. Load [references/sheets-recording.md](references/sheets-recording.md) only for initial setup, migration, exact payload syntax, or a write/reconciliation failure. Run `uv run python scripts/sheets_record.py doctor` before processing the queue.
 
-Google Sheets is the only writable V1 record store. Use the bundled CLI for authentication, initialization, validation, lookup, writes, audits, and Markdown exports. Do not call a Google Sheets connector, read its plugin documentation, hand-author spreadsheet requests, or maintain a second writable Markdown record. Stop on missing OAuth, unavailable API access, or schema drift.
+Google Sheets is the only writable V1 record store. Use the bundled CLI for authentication, initialization, validation, lookup, writes, audits, and Markdown exports. The same private OAuth token may use the bundled Gmail read-only commands for an explicit mailbox search or a single-message read; keep mail content transient and never copy it into the record store. Do not call a Google Sheets connector, read its plugin documentation, hand-author spreadsheet requests, or maintain a second writable Markdown record. Stop on missing OAuth, unavailable API access, or schema drift.
 
 Workbook row-one labels are readable Chinese business names, with audit-critical columns first and system fields last. Fixed-choice cells use low-saturation status colors; other cells use a light neutral background. JSON inputs and internal validation continue to use the documented snake_case field keys. Run `uv run python scripts/sheets_record.py format-workbook` to restore labels, gridlines, frozen panes, widths, and styling after manual formatting changes.
 
@@ -68,7 +68,7 @@ Use only the exact brand, product name, or naked canonical URL as public link te
 
 ## Protect records
 
-- Store aliases and controlled evidence IDs, not passwords, OTPs, recovery codes, cookies, OAuth parameters, magic links, raw session IDs, raw email addresses, phone numbers, or tokenized URLs.
+- Store aliases and controlled evidence IDs, not passwords, OTPs, recovery codes, cookies, OAuth parameters, magic links, raw session IDs, raw email addresses, phone numbers, tokenized URLs, or Gmail message content. Gmail command output is transient and must not be copied into Sheets, evidence, or repository files.
 - Separate the shareable campaign record from controlled evidence.
 - Treat a click, registration, draft, cleared form, or generic thank-you URL as insufficient submission evidence.
 
@@ -92,5 +92,5 @@ Report totals by queue state, verification state, shard, and outcome. Measure qu
 - [references/status-model.md](references/status-model.md): record schema and state invariants.
 - [references/sheets-recording.md](references/sheets-recording.md): direct Google API setup, fixed CLI, JSON payloads, dry runs, audit, and export.
 - [references/browser-control-routing.md](references/browser-control-routing.md): backend-neutral browser selection, interaction, confirmation, recovery, and evidence rules.
-- `scripts/sheets_record.py`: authoritative Google Sheets record CLI.
+- `scripts/sheets_record.py`: authoritative Google Sheets record and Gmail read-only CLI.
 - `scripts/record_model.py`: shared schema, privacy, state, audit, and export rules.

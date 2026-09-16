@@ -7,6 +7,8 @@ from backlink_records.cli import (
 )
 from backlink_records.credentials import (
     SCOPES,
+    SHEETS_SCOPE,
+    GMAIL_READONLY_SCOPE,
     CONFIG_ENV,
     default_config_dir,
     ensure_private_dir,
@@ -15,8 +17,17 @@ from backlink_records.credentials import (
     read_json_file,
     writer_lock,
     authenticate,
+    backup_runtime_state,
+    validate_desktop_client,
     load_credentials,
     build_service,
+    build_gmail_service,
+)
+from backlink_records.gmail_store import (
+    MAX_BODY_BYTES,
+    MAX_SEARCH_RESULTS,
+    search_messages,
+    read_message,
 )
 from backlink_records.formatting import (
     DEFAULT_TITLE,

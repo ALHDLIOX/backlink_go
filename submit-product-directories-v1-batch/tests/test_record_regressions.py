@@ -229,13 +229,20 @@ class PackageRegressionTests(unittest.TestCase):
         self.assertFalse(json.loads(result.stdout)["network_access"])
 
     def test_doctor_cli_all_supported_versions(self):
+        gmail = type("Gmail", (), {
+            "users": lambda self: self,
+            "getProfile": lambda self, **kwargs: self,
+            "execute": lambda self: {"emailAddress": "redacted@example.test"},
+        })()
         for version in ("4", "5", "6", "7", "8"):
             with self.subTest(version=version), tempfile.TemporaryDirectory() as root:
                 config = Path(root)
                 credentials.write_private_json(config / "v1-sheets.json", {"schema_version": version, "spreadsheet_id": "sheet"})
                 store = type("Store", (), {"spreadsheet_id": "sheet", "verify_schema": lambda self, *args: {}})()
                 out = io.StringIO()
-                with patch.object(operations, "load_store", return_value=store), redirect_stdout(out):
+                with patch.object(operations, "load_store", return_value=store), patch.object(
+                    operations, "build_gmail_service", return_value=gmail
+                ), redirect_stdout(out):
                     code = cli.main(["--config-dir", root, "doctor"])
                 self.assertEqual(code, 0)
                 self.assertEqual(json.loads(out.getvalue())["migration_required"], version != "8")

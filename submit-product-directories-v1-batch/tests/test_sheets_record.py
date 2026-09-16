@@ -305,13 +305,39 @@ class CliTests(unittest.TestCase):
                 "spreadsheet_id": "sheet-1",
                 "verify_schema": lambda self, version, headers: {"properties": {"title": "Legacy"}},
             })()
-            with patch.object(OPERATIONS, "load_store", return_value=fake_store) as load:
+            gmail = type("Gmail", (), {
+                "users": lambda self: self,
+                "getProfile": lambda self, **kwargs: self,
+                "execute": lambda self: {"emailAddress": "redacted@example.test"},
+            })()
+            with patch.object(OPERATIONS, "load_store", return_value=fake_store) as load, patch.object(
+                OPERATIONS, "build_gmail_service", return_value=gmail
+            ):
                 result = SHEETS.doctor(config_dir)
             load.assert_called_once_with(config_dir, "6")
             self.assertFalse(result["healthy"])
             self.assertTrue(result["migration_required"])
             self.assertEqual(result["schema_version"], "6")
             self.assertEqual(result["target_schema_version"], MODEL.SCHEMA_VERSION)
+            self.assertEqual(result["sheets"], "ok")
+            self.assertEqual(result["gmail"], "ok")
+
+    def test_doctor_reports_gmail_failure_separately(self):
+        with tempfile.TemporaryDirectory() as root:
+            config_dir = Path(root) / "config"
+            SHEETS.write_private_json(config_dir / "v1-sheets.json", {"schema_version": "8", "spreadsheet_id": "sheet-1"})
+            fake_store = type("FakeStore", (), {
+                "spreadsheet_id": "sheet-1",
+                "verify_schema": lambda self, version, headers: {"properties": {"title": "Current"}},
+            })()
+            with patch.object(OPERATIONS, "load_store", return_value=fake_store), patch.object(
+                OPERATIONS, "build_gmail_service", side_effect=RuntimeError("provider response")
+            ):
+                result = SHEETS.doctor(config_dir)
+            self.assertEqual(result["sheets"], "ok")
+            self.assertEqual(result["gmail"], "error")
+            self.assertFalse(result["healthy"])
+            self.assertTrue(any("Gmail check failed" in error for error in result["errors"]))
     def test_dry_run_upsert_placement_never_loads_google(self):
         with tempfile.TemporaryDirectory() as root:
             source = Path(root) / "record.json"; source.write_text(json.dumps(placement()), encoding="utf-8")
