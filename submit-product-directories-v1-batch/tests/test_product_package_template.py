@@ -12,6 +12,7 @@ TEMPLATE_ROOT = REPO_ROOT / "products" / "template"
 class ProductPackageTemplateTests(unittest.TestCase):
     def test_canonical_template_contains_every_documented_text_file(self) -> None:
         expected = {
+            "AGENT-INTAKE.md",
             "PACKAGE-GUIDE.md",
             "README.md",
             "product-profile.md",
@@ -70,7 +71,22 @@ class ProductPackageTemplateTests(unittest.TestCase):
             SKILL_ROOT / "references" / "product-packages.md"
         ).read_text(encoding="utf-8")
         self.assertIn("../../products/template/", reference)
+        self.assertIn("AGENT-INTAKE.md", reference)
         self.assertIn("PACKAGE-GUIDE.md", reference)
+
+    def test_agent_intake_can_drive_package_generation_without_external_actions(self) -> None:
+        intake = (TEMPLATE_ROOT / "AGENT-INTAKE.md").read_text(encoding="utf-8")
+        for required in (
+            "Agent execution contract",
+            "Product intake form",
+            "products/<product-id>/",
+            "Do not invent company",
+            "Do not submit forms",
+            "rg -n",
+            "./scripts/check-all.sh",
+            "Optional campaign and source-list authorization",
+        ):
+            self.assertIn(required, intake)
 
 
 if __name__ == "__main__":

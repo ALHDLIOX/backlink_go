@@ -6,11 +6,17 @@ It is an input package, not a submission tracker. Google Sheets remains the only
 
 ## Create a product package
 
+### Agent-assisted path
+
+Fill in `AGENT-INTAKE.md` and give that single file to an Agent working in this repository. It contains the creation contract, input form, safety boundaries, and validation commands needed to generate the package from the adjacent canonical templates.
+
+### Manual path
+
 1. Copy this directory to `products/<product-id>/`.
 2. Rename `<product-id>` to a stable lowercase identifier, such as `example-product`.
 3. Replace every `{{PLACEHOLDER}}` in the copied files.
 4. Verify claims against current first-party or user-confirmed evidence.
-5. Delete `PACKAGE-GUIDE.md`, template instructions, and conditional files that do not apply.
+5. Delete `PACKAGE-GUIDE.md`, `AGENT-INTAKE.md`, template instructions, and conditional files that do not apply.
 6. Put real account or contact values only in `.backlink-go/private/product-aliases.json`; keep aliases in the package.
 7. Before a live campaign, create a bounded source-list file and record the Campaign in Google Sheets.
 
@@ -36,6 +42,8 @@ products/<product-id>/
 Binary assets are not included in this template. Keep each directory README until its requirements have been transferred into `asset-manifest.md`; it may then be removed from the product package.
 
 `PACKAGE-GUIDE.md` exists only in the canonical template and is not part of a finished product package.
+
+`AGENT-INTAKE.md` is the single-file Agent entrypoint. It is also template-only and must not remain in a finished product package.
 
 ## File requirements
 
