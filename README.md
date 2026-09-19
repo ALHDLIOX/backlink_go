@@ -122,4 +122,4 @@ Related: [Awesome Codex Skills](https://github.com/flaqai/awesome_codex_skills) 
 
 ## License
 
-[MIT License](LICENSE)
+[MIT License](LICENSE) · [Privacy Policy](PRIVACY.md)

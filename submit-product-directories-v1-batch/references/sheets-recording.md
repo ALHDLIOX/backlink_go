@@ -3,6 +3,8 @@
 Use only the bundled CLI. Never use a Sheets connector or hand-edit rows as an execution method.
 
 ```bash
+uv run python scripts/sheets_record.py auth --client-secret /path/to/client.json --replace
+uv run python scripts/sheets_record.py init --title "Backlink Operations" --replace-existing-config
 uv run python scripts/sheets_record.py doctor
 uv run python scripts/sheets_record.py migrate-schema-v8
 uv run python scripts/sheets_record.py format-workbook
@@ -13,9 +15,15 @@ uv run python scripts/sheets_record.py append-event --input event.json
 uv run python scripts/sheets_record.py placement-history --product-id PRODUCT_ID --json
 uv run python scripts/sheets_record.py audit --campaign-id CAMPAIGN_ID --json
 uv run python scripts/sheets_record.py export-md --campaign-id CAMPAIGN_ID --output record.md
+uv run python scripts/sheets_record.py gmail-search --query 'newer_than:7d' --max-results 10
+uv run python scripts/sheets_record.py gmail-read --message-id MESSAGE_ID
 ```
 
-All upsert and event commands accept `--dry-run`; dry run validates without Google access. `doctor` checks OAuth, workbook identity, schema 8, and exact headers. Migration accepts schema 4 through 7, combines legacy result tabs when necessary, moves the product ID to the first Placement column, and verifies the workbook. It never treats an intended campaign target as an observed backlink; published legacy rows without outbound-link evidence become `outcome unknown` pending revalidation.
+OAuth requests `drive.file` for the workbook created by this app and `gmail.readonly` for explicit mailbox reads. `auth --replace` backs up the active client, token, and workbook configuration before opening the account-selection consent flow; it activates the new client and token only after both scopes and a refresh token are present. `init --replace-existing-config` creates and verifies a new workbook before changing the local workbook pointer. Backups stay under the ignored private runtime directory with `0700` directories and `0600` files.
+
+`gmail-search` requires an explicit Gmail query, returns at most 50 results, and fetches message metadata only. `gmail-read` reads one explicit message ID, prefers the plain-text body, converts HTML-only mail to text, truncates body output at 100 KiB, and lists attachment metadata without downloading attachment content. Mail content is transient command output; never write it to Sheets, records, evidence, or repository files.
+
+All upsert and event commands accept `--dry-run`; dry run validates without Google access. `doctor` checks OAuth, workbook identity, schema 8, exact headers, and Gmail API access, reporting Sheets and Gmail separately. Migration accepts schema 4 through 7, combines legacy result tabs when necessary, moves the product ID to the first Placement column, and verifies the workbook. It never treats an intended campaign target as an observed backlink; published legacy rows without outbound-link evidence become `outcome unknown` pending revalidation.
 
 For normal batch execution, call `placement-history --product-id PRODUCT_ID --json` once after `doctor` and Campaign resolution. It returns complete Placement snapshots, including `row_version`. Build an in-memory index from those rows, use that index for all source URLs, and update it from every successful Placement readback. To update an existing Placement, copy the snapshot's `row_version` to `expected_row_version`, remove `row_version`, change the intended business fields, and pass the resulting full payload to `upsert-placement`. `--platform-domain` is a targeted refresh for interrupted, ambiguous, or externally changed state; it is not the default per-destination lookup pattern.
 

@@ -16,19 +16,26 @@ DEFAULT_TITLE = "Backlink Operations"
 METADATA_KEY = "spd_v1_schema_version"
 
 
-COLOR_GREEN = ({"red": 0.91, "green": 0.97, "blue": 0.93}, {"red": 0.12, "green": 0.38, "blue": 0.23})
+CENTERED_BODY_COLUMNS = {
+    "Platforms": ("website_name", "platform_domain", "row_version"),
+    "Campaigns": ("product_canonical_id", "execution_shard_size", "row_version"),
+    "Placements": ("product_canonical_id", "platform_domain", "row_version"),
+}
 
 
-COLOR_BLUE = ({"red": 0.92, "green": 0.95, "blue": 0.99}, {"red": 0.13, "green": 0.31, "blue": 0.55})
+COLOR_GREEN = ({"red": 0.91, "green": 0.97, "blue": 0.93}, {"red": 0.082, "green": 0.502, "blue": 0.239})
 
 
-COLOR_YELLOW = ({"red": 1.0, "green": 0.97, "blue": 0.87}, {"red": 0.48, "green": 0.34, "blue": 0.06})
+COLOR_BLUE = ({"red": 0.92, "green": 0.95, "blue": 0.99}, {"red": 0.145, "green": 0.388, "blue": 0.922})
 
 
-COLOR_RED = ({"red": 0.99, "green": 0.92, "blue": 0.93}, {"red": 0.55, "green": 0.16, "blue": 0.20})
+COLOR_YELLOW = ({"red": 1.0, "green": 0.97, "blue": 0.87}, {"red": 0.851, "green": 0.467, "blue": 0.024})
 
 
-COLOR_GRAY = ({"red": 0.95, "green": 0.96, "blue": 0.97}, {"red": 0.32, "green": 0.36, "blue": 0.42})
+COLOR_RED = ({"red": 0.99, "green": 0.92, "blue": 0.93}, {"red": 0.863, "green": 0.149, "blue": 0.149})
+
+
+COLOR_GRAY = ({"red": 0.95, "green": 0.96, "blue": 0.97}, {"red": 0.420, "green": 0.447, "blue": 0.502})
 
 
 def fixed_option_colors() -> dict[tuple[str, str], dict[str, tuple[dict[str, float], dict[str, float]]]]:
@@ -221,16 +228,20 @@ def readable_format_requests(properties: dict[str, dict[str, Any]]) -> list[dict
                         },
                         "cell": {
                             "userEnteredFormat": {
-                                "backgroundColor": {"red": 0.86, "green": 0.90, "blue": 0.95},
+                                "backgroundColor": {"red": 1.0, "green": 0.953, "blue": 0.839},
                                 "textFormat": {
                                     "bold": True,
-                                    "foregroundColor": {"red": 0.12, "green": 0.16, "blue": 0.22},
+                                    "foregroundColor": {"red": 0.247, "green": 0.204, "blue": 0.141},
                                 },
+                                "horizontalAlignment": "CENTER",
                                 "verticalAlignment": "MIDDLE",
                                 "wrapStrategy": "WRAP",
                             }
                         },
-                        "fields": "userEnteredFormat(backgroundColor,textFormat,verticalAlignment,wrapStrategy)",
+                        "fields": (
+                            "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,"
+                            "verticalAlignment,wrapStrategy)"
+                        ),
                     }
                 },
                 {
@@ -276,10 +287,26 @@ def readable_format_requests(properties: dict[str, dict[str, Any]]) -> list[dict
                     }
                 }
             )
+        for header in CENTERED_BODY_COLUMNS.get(tab_name, ()):
+            column_index = headers.index(header)
+            requests.append(
+                {
+                    "repeatCell": {
+                        "range": {
+                            "sheetId": sheet_id,
+                            "startRowIndex": 1,
+                            "startColumnIndex": column_index,
+                            "endColumnIndex": column_index + 1,
+                        },
+                        "cell": {"userEnteredFormat": {"horizontalAlignment": "CENTER"}},
+                        "fields": "userEnteredFormat.horizontalAlignment",
+                    }
+                }
+            )
     for (tab_name, header), values in fixed_option_colors().items():
         sheet_id = properties[tab_name]["sheetId"]
         column_index = TABLE_HEADERS[tab_name].index(header)
-        for value, (background, foreground) in values.items():
+        for value, (_, foreground) in values.items():
             requests.append(
                 {
                     "addConditionalFormatRule": {
@@ -298,7 +325,6 @@ def readable_format_requests(properties: dict[str, dict[str, Any]]) -> list[dict
                                     "values": [{"userEnteredValue": value}],
                                 },
                                 "format": {
-                                    "backgroundColor": background,
                                     "textFormat": {"foregroundColor": foreground, "bold": True},
                                 },
                             },

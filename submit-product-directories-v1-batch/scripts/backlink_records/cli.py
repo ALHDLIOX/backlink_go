@@ -6,13 +6,18 @@ import argparse
 import json
 import sys
 from backlink_records.credentials import (
+    SCOPES,
     authenticate,
+    backup_runtime_state,
+    build_gmail_service,
     build_service,
     default_config_dir,
     read_json_file,
+    validate_desktop_client,
     write_private_json,
     writer_lock,
 )
+from backlink_records.gmail_store import read_message, search_messages
 from backlink_records.formatting import DEFAULT_TITLE, format_workbook
 from backlink_records.migrations.runner import migrate_schema_v8
 from backlink_records.model import (
@@ -71,10 +76,12 @@ def parser() -> argparse.ArgumentParser:
 
     auth_parser = commands.add_parser("auth")
     auth_parser.add_argument("--client-secret", type=Path, required=True)
+    auth_parser.add_argument("--replace", action="store_true")
     auth_parser.add_argument("--dry-run", action="store_true")
 
     init_parser = commands.add_parser("init")
     init_parser.add_argument("--title", default=DEFAULT_TITLE)
+    init_parser.add_argument("--replace-existing-config", action="store_true")
     init_parser.add_argument("--dry-run", action="store_true")
 
     commands.add_parser("doctor")
@@ -104,6 +111,15 @@ def parser() -> argparse.ArgumentParser:
     history_parser.add_argument("--platform-domain")
     history_parser.add_argument("--json", action="store_true")
 
+    gmail_search = commands.add_parser("gmail-search")
+    gmail_search.add_argument("--query", required=True)
+    gmail_search.add_argument("--max-results", type=int, default=10)
+    gmail_search.add_argument("--json", action="store_true")
+
+    gmail_read = commands.add_parser("gmail-read")
+    gmail_read.add_argument("--message-id", required=True)
+    gmail_read.add_argument("--json", action="store_true")
+
     return result
 
 
@@ -114,32 +130,40 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "auth":
             if args.dry_run:
                 client_config = read_json_file(args.client_secret)
-                if "installed" not in client_config:
-                    raise RecordValidationError("OAuth JSON must contain an installed desktop client")
+                validate_desktop_client(client_config)
                 output = {
                     "dry_run": True,
                     "network_access": False,
                     "command": "auth",
                     "client_secret": "valid desktop OAuth JSON",
+                    "scopes": list(SCOPES),
                 }
             else:
-                output = authenticate(config_dir, args.client_secret)
+                with writer_lock(config_dir):
+                    output = authenticate(config_dir, args.client_secret, replace=args.replace)
         elif args.command == "init":
             if args.dry_run:
                 output = dry_run("init", title=args.title)
             else:
                 with writer_lock(config_dir):
-                    if (config_dir / "v1-sheets.json").exists():
-                        raise RecordValidationError("workbook is already configured; run doctor")
+                    config_path = config_dir / "v1-sheets.json"
+                    if config_path.exists() and not args.replace_existing_config:
+                        raise RecordValidationError(
+                            "workbook is already configured; use --replace-existing-config to create a new one"
+                        )
                     store, config = GoogleSheetsStore.create(build_service(config_dir), args.title)
-                    write_private_json(config_dir / "v1-sheets.json", config)
                     store.verify_schema()
+                    backup = backup_runtime_state(config_dir, ("v1-sheets.json",))
+                    write_private_json(config_path, config)
+                    config["backup"] = str(backup) if backup else None
                 output = config
         elif args.command in {"migrate-schema-v5", "migrate-schema-v6", "migrate-schema-v7", "migrate-schema-v8"}:
             with writer_lock(config_dir):
                 output = migrate_schema_v8(config_dir)
         elif args.command == "doctor":
             output = doctor(config_dir)
+            print(json.dumps(output, ensure_ascii=False, indent=2))
+            return 0 if output["sheets"] == "ok" and output["gmail"] == "ok" else 1
         elif args.command == "format-workbook":
             with writer_lock(config_dir):
                 output = format_workbook(load_store(config_dir))
@@ -199,6 +223,36 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"{item['placement_id']} | {item['platform_domain']} | {item['status']} | {item['anchor_text']}")
                 if not items:
                     print("No placement history found")
+            return 0
+        elif args.command == "gmail-search":
+            output = search_messages(build_gmail_service(config_dir), args.query, args.max_results)
+            if args.json:
+                print(json.dumps(output, ensure_ascii=False, indent=2))
+            else:
+                for item in output["messages"]:
+                    print(f"{item['message_id']} | {item['date']} | {item['from']} | {item['subject']}")
+                    if item["snippet"]:
+                        print(f"  {item['snippet']}")
+                if not output["messages"]:
+                    print("No messages found")
+            return 0
+        elif args.command == "gmail-read":
+            output = read_message(build_gmail_service(config_dir), args.message_id)
+            if args.json:
+                print(json.dumps(output, ensure_ascii=False, indent=2))
+            else:
+                print(f"From: {output['from']}")
+                print(f"To: {output['to']}")
+                print(f"Date: {output['date']}")
+                print(f"Subject: {output['subject']}")
+                print()
+                print(output["body"])
+                if output["truncated"]:
+                    print("\n[body truncated at 100 KiB]")
+                if output["attachments"]:
+                    print("\nAttachments:")
+                    for item in output["attachments"]:
+                        print(f"- {item['filename']} ({item['mime_type']}, {item['size']} bytes)")
             return 0
         else:  # pragma: no cover
             raise RecordValidationError("unknown command")

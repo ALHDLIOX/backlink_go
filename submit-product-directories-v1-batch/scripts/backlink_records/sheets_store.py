@@ -15,6 +15,7 @@ from backlink_records.model import (
     LEGACY_HEADER_LABELS,
     RecordValidationError,
     SCHEMA_VERSION,
+    SCHEMA_V7_HEADER_LABELS,
     TABLE_HEADERS,
     display_headers,
     row_values,
@@ -104,7 +105,11 @@ class GoogleSheetsStore:
                 raise RecordValidationError(f"schema drift in {tab_name} grid properties")
             actual = self._read_values(f"'{tab_name}'!A1:{column_letter(len(headers))}1")
             actual_headers = actual[0] if actual else []
-            labels = HEADER_LABELS if schema_version in {SCHEMA_VERSION, "7"} else LEGACY_HEADER_LABELS
+            labels = (
+                HEADER_LABELS if schema_version == SCHEMA_VERSION else
+                SCHEMA_V7_HEADER_LABELS if schema_version == "7" else
+                LEGACY_HEADER_LABELS
+            )
             expected_headers = [labels[header] for header in headers]
             if actual_headers != expected_headers:
                 raise RecordValidationError(f"schema drift in {tab_name} headers")
