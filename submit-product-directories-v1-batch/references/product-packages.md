@@ -15,6 +15,8 @@ products/<product-id>/
 └── source-lists/
 ```
 
+Use [`../../products/template/`](../../products/template/) as the canonical starting point for a new package. Its `PACKAGE-GUIDE.md` defines required and conditional files, copy rules, privacy boundaries, and the relationship between package inputs and the Google Sheets record. Copy the directory, rename it to the canonical product ID, replace every `{{PLACEHOLDER}}`, and remove `PACKAGE-GUIDE.md`, template-only guidance, or unused conditional files before using the package for a live campaign.
+
 Load package material progressively. At batch start, read the verified product profile, the selected source list, the applicable authorization, and any existing campaign state. Read brand rules only before preparing or selecting public copy. Read the asset manifest only when the current route requires an upload. Read the package README only when it contains routing or package-specific instructions needed for the current task. Do not load unrelated source lists, screenshots, images, or other package files into model context.
 
 Product packages contain public or repository-safe facts only. Do not commit raw email addresses, credentials, tokens, cookies, authentication URLs, or private browser-session identifiers.
