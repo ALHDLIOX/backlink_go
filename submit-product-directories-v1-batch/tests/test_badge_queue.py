@@ -64,6 +64,13 @@ class BadgeQueueTests(unittest.TestCase):
         self.assertEqual(resumed["row_version"], "3")
         self.assertEqual(len(store.tables["Placements"]), 1)
         self.assertTrue(SHEETS.workbook_audit(store, None)["valid"])
+        original = dict(store.tables["Placements"][0])
+        store.tables["Placements"][0].update(placement())
+        self.assertFalse(SHEETS.workbook_audit(store, None)["valid"])
+        store.tables["Placements"][0] = original
+        store.tables["Placements"][0]["evidence_reference"] = "unrelated-evidence"
+        self.assertFalse(SHEETS.workbook_audit(store, None)["valid"])
+        store.tables["Placements"][0]["evidence_reference"] = resume_payload["evidence_reference"]
         SHEETS.append_event(store, event(event_id="publish-after-resume", action="publish", result="published", evidence_reference="public-evidence"))
         SHEETS.upsert(store, "placement", {**placement(evidence_reference="public-evidence"), "expected_row_version": "3"})
         self.assertTrue(SHEETS.workbook_audit(store, None)["valid"])
@@ -182,7 +189,7 @@ class BadgeQueueTests(unittest.TestCase):
         resume = {**self.waiting(status="in progress", exact_result="Form resumed; not submitted"), "expected_row_version": "2"}
         with self.assertRaisesRegex(MODEL.RecordValidationError, "user confirmed"):
             SHEETS.upsert(store, "placement", resume)
-        SHEETS.append_event(store, event(event_id="confirmed", action="resume after badge verification", result="user confirmed badge deployment; badge verified; form resumed"))
+        SHEETS.append_event(store, event(event_id="confirmed", action=" Resume After Badge Verification ", result="user confirmed badge deployment; badge verified; form resumed"))
         SHEETS.upsert(store, "placement", resume)
         self.assertTrue(SHEETS.workbook_audit(store, None)["valid"])
         SHEETS.upsert(store, "placement", {**self.waiting(status="draft saved"), "expected_row_version": "3"})
