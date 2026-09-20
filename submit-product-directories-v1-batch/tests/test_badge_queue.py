@@ -67,6 +67,9 @@ class BadgeQueueTests(unittest.TestCase):
         SHEETS.append_event(store, event(event_id="publish-after-resume", action="publish", result="published", evidence_reference="public-evidence"))
         SHEETS.upsert(store, "placement", {**placement(evidence_reference="public-evidence"), "expected_row_version": "3"})
         self.assertTrue(SHEETS.workbook_audit(store, None)["valid"])
+        SHEETS.append_event(store, event(event_id="removed-after-publication", action="verify removal", result="removed"))
+        SHEETS.upsert(store, "placement", {**placement(status="removed"), "expected_row_version": "4"})
+        self.assertTrue(SHEETS.workbook_audit(store, None)["valid"])
         store.tables["Events"] = [event for event in store.tables["Events"] if event["event_id"] != "event-2"]
         audit = SHEETS.workbook_audit(store, None)
         self.assertFalse(audit["valid"])
@@ -112,7 +115,13 @@ class BadgeQueueTests(unittest.TestCase):
             SHEETS.upsert(store, "placement", payload)
         with self.assertRaises(MODEL.RecordValidationError):
             SHEETS.upsert(store, "placement", payload, correction_event_id="event-1")
-        SHEETS.append_event(store, event(event_id="correction-1", action="correct unsubmitted status", result="Old status was incorrect; badge selection only, no submission"))
+        for index, bad_result in enumerate(("submission confirmed", "not no submission confirmed", "no submission confirmed; submission confirmed")):
+            correction_id = f"bad-correction-{index}"
+            SHEETS.append_event(store, event(event_id=correction_id, action="correct unsubmitted status", result=bad_result))
+            with self.assertRaisesRegex(MODEL.RecordValidationError, "exactly no submission confirmed"):
+                SHEETS.upsert(store, "placement", payload, correction_event_id=correction_id)
+            self.assertEqual(store.tables["Placements"][0]["status"], "awaiting approval")
+        SHEETS.append_event(store, event(event_id="correction-1", action="correct unsubmitted status", result="no submission confirmed"))
         result = SHEETS.upsert(store, "placement", payload, correction_event_id="correction-1")
         self.assertEqual(result["row_version"], "3")
         self.assertEqual(store.tables["Placements"][0]["status"], "waiting badge")
