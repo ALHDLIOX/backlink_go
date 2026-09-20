@@ -18,8 +18,10 @@ class BadgeQueueTests(unittest.TestCase):
         record = MODEL.prepare_record("platform", platform(cost_detail=detail))
         self.assertEqual(record["cost_detail"], detail)
         index = MODEL.PLATFORM_HEADERS.index("cost_model")
-        self.assertEqual(MODEL.PLATFORM_HEADERS[index + 1], "cost_detail")
-        self.assertEqual(MODEL.display_headers("Platforms")[index + 1], "Cost Detail")
+        self.assertEqual(MODEL.PLATFORM_HEADERS[index + 1], "reciprocal_requirement")
+        self.assertEqual(MODEL.PLATFORM_HEADERS[index + 2], "cost_detail")
+        self.assertEqual(MODEL.display_headers("Platforms")[index + 1], "Reciprocal Requirement")
+        self.assertEqual(MODEL.display_headers("Platforms")[index + 2], "Cost Detail")
         with self.assertRaises(MODEL.RecordValidationError):
             MODEL.prepare_record("platform", platform(cost_detail="https://example.test/?token=secret"))
 

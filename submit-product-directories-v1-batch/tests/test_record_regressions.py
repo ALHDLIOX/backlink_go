@@ -37,7 +37,7 @@ class GridStore(GoogleSheetsStore):
             "rowCount": 1000, "columnCount": len(fields), "frozenRowCount": 1}}
             for i, (tab, fields) in enumerate(headers.items(), 1)}
         labels = (
-            MODEL.HEADER_LABELS if version in {MODEL.SCHEMA_VERSION, "8"} else
+            MODEL.HEADER_LABELS if version in {MODEL.SCHEMA_VERSION, "8", "9"} else
             MODEL.SCHEMA_V7_HEADER_LABELS if version == "7" else
             MODEL.LEGACY_HEADER_LABELS
         )
@@ -95,12 +95,12 @@ class GridStore(GoogleSheetsStore):
 class MigrationRegressionTests(unittest.TestCase):
     def test_each_legacy_version_clears_retained_rows_and_reads_back(self):
         schemas = {"4": MODEL.LEGACY_TABLE_HEADERS, "5": MODEL.SCHEMA_V5_TABLE_HEADERS,
-                   "6": MODEL.SCHEMA_V6_TABLE_HEADERS, "7": MODEL.SCHEMA_V7_TABLE_HEADERS, "8": MODEL.SCHEMA_V8_TABLE_HEADERS}
+                   "6": MODEL.SCHEMA_V6_TABLE_HEADERS, "7": MODEL.SCHEMA_V7_TABLE_HEADERS, "8": MODEL.SCHEMA_V8_TABLE_HEADERS, "9": MODEL.SCHEMA_V9_TABLE_HEADERS}
         for version, headers in schemas.items():
             with self.subTest(version=version), tempfile.TemporaryDirectory() as root:
                 source = {"Platforms": [{**platform(last_verified_at="2026-09-15T10:00:00+08:00"), "row_version": "1"}],
                           "Campaigns": [{**campaign(), "row_version": "1"}]}
-                if version in {"7", "8"}:
+                if version in {"7", "8", "9"}:
                     source["Placements"] = [MODEL.prepare_record("placement", queued())]
                     source["Events"] = [MODEL.prepare_record("event", event())]
                 store = GridStore(version, headers, source)
@@ -243,7 +243,7 @@ class PackageRegressionTests(unittest.TestCase):
             "getProfile": lambda self, **kwargs: self,
             "execute": lambda self: {"emailAddress": "redacted@example.test"},
         })()
-        for version in ("4", "5", "6", "7", "8", "9"):
+        for version in ("4", "5", "6", "7", "8", "9", "10"):
             with self.subTest(version=version), tempfile.TemporaryDirectory() as root:
                 config = Path(root)
                 credentials.write_private_json(config / "v1-sheets.json", {"schema_version": version, "spreadsheet_id": "sheet"})

@@ -22,7 +22,7 @@ Google Sheets is the only writable record source. Use only `../submit-product-di
 1. Resolve the verified product package from `../products/<product-id>/`. Resolve private values only from the ignored `../.backlink-go/private/product-aliases.json`; never copy raw values into records or output.
 2. Read [references/routing.md](references/routing.md), classify the live destination, and load only the selected lane.
 3. Run `uv run python ../submit-product-directories-v1-batch/scripts/sheets_record.py doctor` before record or browser work.
-4. If schema 4 through 8 is reported, run `migrate-schema-v9`. Stop if OAuth, workbook identity, schema, or headers remain invalid.
+4. If schema 4 through 9 is reported, run `migrate-schema-v10`. Stop if OAuth, workbook identity, schema, or headers remain invalid.
 
 ## Authorization
 
@@ -56,6 +56,6 @@ Events no longer carry a record type because every event resolves to exactly one
 - [references/routing.md](references/routing.md): execution-lane classification.
 - [references/article-publishing.md](references/article-publishing.md): long-form writing and publication.
 - [references/social-publishing.md](references/social-publishing.md): short-social publication.
-- `../submit-product-directories-v1-batch/references/status-model.md`: unified schema 9 fields and invariants.
+- `../submit-product-directories-v1-batch/references/status-model.md`: unified schema 10 fields and invariants.
 - `../submit-product-directories-v1-batch/references/sheets-recording.md`: fixed CLI commands and JSON examples.
 - `../writer/references/ephemeral-publishing.md`: transient article-writing rules.

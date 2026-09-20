@@ -1,4 +1,4 @@
-# Backlink Operations schema 9
+# Backlink Operations schema 10
 
 Google Sheets is the authoritative V1 record store. Schema 9 has four worksheets: `Platforms`, `Campaigns`, `Placements`, and append-only `Events`. Directory, article, and social execution lanes all write the same Placement model. Business time is `YYYY-MM-DD HH:MM`.
 
@@ -28,7 +28,7 @@ Executed Placements require a prior linked Event. Updates require the current `e
 
 ## Pricing and badge queue
 
-`Platforms.cost_detail` (Cost Detail) immediately follows Cost Model. Record every observed submission plan, its exact price/currency, waiting time, and badge or other conditions; for example: `Free Launch $0 — wait 100 days; Badge Launch $0 — badge required; Premium Launch $9.9`. Do not infer unobserved options or duplicate pricing in Notes. Unknown legacy details may remain blank until inspected; preserve unrelated Notes.
+`Platforms.reciprocal_requirement` (Reciprocal Requirement) immediately follows Cost Model, and `Platforms.cost_detail` (Cost Detail) follows Reciprocal Requirement. Record every observed submission plan, its exact price/currency, waiting time, and badge or other conditions; for example: `Free Launch $0 — wait 100 days; Badge Launch $0 — badge required; Premium Launch $9.9`. Do not infer unobserved options or duplicate pricing in Notes. Unknown legacy details may remain blank until inspected; preserve unrelated Notes.
 
 When both a free no-badge plan with a wait and a free badge plan exist, prefer the badge plan and set the Platform's `reciprocal_requirement` to `required` even though the other plan needs no badge. Append an Event and update the existing Placement to `waiting badge`, with `action_at: not submitted`, no public/backlink URLs, and the selected plan in `exact_result`. In `follow_up`, retain the non-secret badge instructions or canonical instructions URL and the need for later batch installation. Do not store executable badge HTML in the record.
 

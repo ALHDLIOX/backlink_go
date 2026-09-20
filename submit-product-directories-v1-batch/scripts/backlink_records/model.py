@@ -6,10 +6,10 @@ import idna
 import json
 import re
 
-SCHEMA_VERSION = "9"
+SCHEMA_VERSION = "10"
 
 
-PREVIOUS_SCHEMA_VERSION = "8"
+PREVIOUS_SCHEMA_VERSION = "9"
 
 
 LEGACY_SCHEMA_VERSION = "4"
@@ -49,7 +49,7 @@ UNVERIFIED_BACKLINK = "not checked — no public backlink verified"
 
 
 PLATFORM_HEADERS = ["website_name", "platform_domain", "canonical_submission_url", "availability",
-                    "cost_model", "cost_detail", "account_required", "verification_pattern", "reciprocal_requirement",
+                    "cost_model", "reciprocal_requirement", "cost_detail", "account_required", "verification_pattern",
                     "last_verified_at", "route", "source", "notes", "platform_id", "row_version"]
 
 
@@ -73,7 +73,14 @@ TABLE_HEADERS = {"Platforms": PLATFORM_HEADERS, "Campaigns": CAMPAIGN_HEADERS,
                  "Placements": PLACEMENT_HEADERS, "Events": EVENT_HEADERS}
 
 
-SCHEMA_V8_TABLE_HEADERS = {**TABLE_HEADERS, "Platforms": [h for h in PLATFORM_HEADERS if h != "cost_detail"]}
+SCHEMA_V9_TABLE_HEADERS = {**TABLE_HEADERS, "Platforms": [
+    "website_name", "platform_domain", "canonical_submission_url", "availability",
+    "cost_model", "cost_detail", "account_required", "verification_pattern", "reciprocal_requirement",
+    "last_verified_at", "route", "source", "notes", "platform_id", "row_version",
+]}
+
+
+SCHEMA_V8_TABLE_HEADERS = {**SCHEMA_V9_TABLE_HEADERS, "Platforms": [h for h in SCHEMA_V9_TABLE_HEADERS["Platforms"] if h != "cost_detail"]}
 
 
 SCHEMA_V7_PLACEMENT_HEADERS = ["platform_domain", "website", "status", "public_url", "backlink_url", "anchor_text",
