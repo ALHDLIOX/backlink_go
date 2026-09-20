@@ -20,7 +20,7 @@ class SkillContractTests(unittest.TestCase):
     def test_one_placement_model_and_anchor_contract(self):
         text = self.combined()
         for required in ("Placements", "upsert-placement", "placement-history", "anchor_text",
-                         "not applicable — image or link card", "migrate-schema-v8"):
+                         "not applicable — image or link card", "migrate-schema-v10"):
             self.assertIn(required, text)
         self.assertIn("every event resolves to exactly one Placement", text)
 

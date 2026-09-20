@@ -23,6 +23,38 @@ CENTERED_BODY_COLUMNS = {
 }
 
 
+CURRENT_COLUMN_WIDTHS = {
+    "Platforms": [200, 200, 240, 150, 145, 140, 234, 130, 240, 157, 126, 144, 126, 234, 137],
+    "Campaigns": [120, 234, 234, 234, 240, 240, 240, 240, 240, 234],
+    "Placements": [120, 240, 234, 144, 216, 240, 234, 240, 198, 240, 234, 240, 240, 180, 234, 234, 126, 240, 240, 240, 240, 240, 240, 234],
+    "Events": [180, 234, 180, 240, 216, 144, 144, 240, 234],
+}
+
+
+CURRENT_BODY_ALIGNMENT = {
+    "Platforms": ["CENTER", "CENTER", "LEFT", "CENTER", "CENTER", "CENTER", "LEFT", "CENTER", "LEFT", "CENTER", "LEFT", "LEFT", "LEFT", "CENTER", "CENTER"],
+    "Campaigns": ["CENTER", "LEFT", "LEFT", "LEFT", "LEFT", "CENTER", "CENTER", "RIGHT", "RIGHT", "CENTER"],
+    "Placements": ["CENTER", "CENTER", "LEFT", "CENTER", "LEFT", "LEFT", "LEFT", "LEFT", "LEFT", "LEFT", "CENTER", "CENTER", "LEFT", "LEFT", "LEFT", "LEFT", "LEFT", "LEFT", "LEFT", "LEFT", "LEFT", "CENTER", "LEFT", "CENTER"],
+    "Events": ["LEFT", "LEFT", "LEFT", "LEFT", "CENTER", "LEFT", "LEFT", "LEFT", "LEFT"],
+}
+
+
+CURRENT_BODY_WRAP = {
+    "Platforms": ["CLIP", "CLIP", "CLIP", "CLIP", "CLIP", "WRAP", "WRAP", "WRAP", "WRAP", "CLIP", "CLIP", "WRAP", "WRAP", "CLIP", "CLIP"],
+    "Campaigns": ["CLIP"] * 10,
+    "Placements": ["CLIP", "CLIP", "CLIP", "WRAP", "CLIP", "CLIP", "CLIP", "WRAP", "WRAP", "WRAP", "CLIP", "CLIP", "CLIP", "CLIP", "CLIP", "CLIP", "CLIP", "CLIP", "CLIP", "CLIP", "CLIP", "CLIP", "WRAP", "CLIP"],
+    "Events": ["CLIP", "CLIP", "CLIP", "CLIP", "CLIP", "CLIP", "WRAP", "CLIP", "CLIP"],
+}
+
+
+CURRENT_HEADER_ALIGNMENT = {
+    "Platforms": ["CENTER", "CENTER", "CENTER", "CENTER", "CENTER", "CENTER", "LEFT", "CENTER", "LEFT", "CENTER", "CENTER", "CENTER", "LEFT", "CENTER", "CENTER"],
+    "Campaigns": ["CENTER"] * 10,
+    "Placements": ["CENTER"] * 24,
+    "Events": ["CENTER"] * 9,
+}
+
+
 COLOR_GREEN = ({"red": 0.91, "green": 0.97, "blue": 0.93}, {"red": 0.082, "green": 0.502, "blue": 0.239})
 
 
@@ -42,7 +74,7 @@ def fixed_option_colors() -> dict[tuple[str, str], dict[str, tuple[dict[str, flo
     status = {}
     for value in ALLOWED_STATUSES:
         if value == "published": status[value] = COLOR_GREEN
-        elif value in {"submitted", "submitted for review", "scheduled", "awaiting approval", "awaiting email verification"}: status[value] = COLOR_BLUE
+        elif value in {"submitted", "submitted for review", "scheduled", "awaiting approval", "awaiting email verification", "waiting badge"}: status[value] = COLOR_BLUE
         elif value in {"in progress", "draft saved", "outcome unknown"}: status[value] = COLOR_YELLOW
         elif value.startswith("blocked") or value in {"rejected", "removed", "unavailable", "paid-only", "ineligible"}: status[value] = COLOR_RED
         else: status[value] = COLOR_GRAY
@@ -271,8 +303,7 @@ def readable_format_requests(properties: dict[str, dict[str, Any]]) -> list[dict
                 },
             ]
         )
-        for index, label in enumerate(display_headers(tab_name)):
-            width = min(240, max(120, len(label) * 18 + 36))
+        for index, width in enumerate(CURRENT_COLUMN_WIDTHS[tab_name]):
             requests.append(
                 {
                     "updateDimensionProperties": {
@@ -287,18 +318,33 @@ def readable_format_requests(properties: dict[str, dict[str, Any]]) -> list[dict
                     }
                 }
             )
-        for header in CENTERED_BODY_COLUMNS.get(tab_name, ()):
-            column_index = headers.index(header)
+        for index, (alignment, wrap) in enumerate(zip(CURRENT_BODY_ALIGNMENT[tab_name], CURRENT_BODY_WRAP[tab_name])):
             requests.append(
                 {
                     "repeatCell": {
                         "range": {
                             "sheetId": sheet_id,
                             "startRowIndex": 1,
-                            "startColumnIndex": column_index,
-                            "endColumnIndex": column_index + 1,
+                            "startColumnIndex": index,
+                            "endColumnIndex": index + 1,
                         },
-                        "cell": {"userEnteredFormat": {"horizontalAlignment": "CENTER"}},
+                        "cell": {"userEnteredFormat": {"horizontalAlignment": alignment, "wrapStrategy": wrap}},
+                        "fields": "userEnteredFormat(horizontalAlignment,wrapStrategy)",
+                    }
+                }
+            )
+        for index, alignment in enumerate(CURRENT_HEADER_ALIGNMENT[tab_name]):
+            requests.append(
+                {
+                    "repeatCell": {
+                        "range": {
+                            "sheetId": sheet_id,
+                            "startRowIndex": 0,
+                            "endRowIndex": 1,
+                            "startColumnIndex": index,
+                            "endColumnIndex": index + 1,
+                        },
+                        "cell": {"userEnteredFormat": {"horizontalAlignment": alignment}},
                         "fields": "userEnteredFormat.horizontalAlignment",
                     }
                 }
@@ -397,3 +443,46 @@ def _cell_row(values: list[object]) -> dict[str, object]:
             for value in values
         ]
     }
+
+
+def wrap_platform_notes(store: "GoogleSheetsStore") -> dict[str, object]:
+    """Wrap long platform fields without changing any column dimensions."""
+    metadata = store.verify_schema()
+    sheet = next(s for s in metadata["sheets"] if s["properties"]["title"] == "Platforms")
+    sheet_id = sheet["properties"]["sheetId"]
+    headers = ("cost_detail", "verification_pattern", "notes")
+    ranges = [f"'Platforms'!{column_letter(TABLE_HEADERS['Platforms'].index(h) + 1)}:{column_letter(TABLE_HEADERS['Platforms'].index(h) + 1)}" for h in headers]
+
+    def snapshot():
+        return store.service.spreadsheets().get(
+            spreadsheetId=store.spreadsheet_id, ranges=ranges,
+            fields="sheets(data(startColumn,columnMetadata(pixelSize),rowData(values(userEnteredFormat(wrapStrategy,horizontalAlignment)))))",
+        ).execute()
+
+    def widths(data):
+        return [(grid.get("startColumn", 0), grid.get("columnMetadata", []))
+                for sh in data["sheets"] for grid in sh.get("data", [])]
+
+    before = snapshot()
+    requests = []
+    for header in headers:
+        index = TABLE_HEADERS["Platforms"].index(header)
+        requests.append({"repeatCell": {
+            "range": {"sheetId": sheet_id, "startColumnIndex": index, "endColumnIndex": index + 1},
+            "cell": {"userEnteredFormat": {"wrapStrategy": "WRAP", "horizontalAlignment": "LEFT"}},
+            "fields": "userEnteredFormat(wrapStrategy,horizontalAlignment)",
+        }})
+    store.service.spreadsheets().batchUpdate(
+        spreadsheetId=store.spreadsheet_id, body={"requests": requests},
+    ).execute()
+    after = snapshot()
+    if widths(before) != widths(after):
+        raise RecordValidationError("column widths changed during wrap formatting")
+    for sh in after["sheets"]:
+        for grid in sh.get("data", []):
+            rows = grid.get("rowData", [])
+            if not rows or any(cell.get("userEnteredFormat", {}).get("wrapStrategy") != "WRAP"
+                               or cell.get("userEnteredFormat", {}).get("horizontalAlignment") != "LEFT"
+                               for row in rows for cell in row.get("values", [])):
+                raise RecordValidationError("wrap formatting readback mismatch")
+    return {"wrapped": list(headers), "column_widths_unchanged": True, "left_aligned": True, "readback_verified": True}

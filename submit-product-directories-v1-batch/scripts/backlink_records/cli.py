@@ -18,8 +18,8 @@ from backlink_records.credentials import (
     writer_lock,
 )
 from backlink_records.gmail_store import read_message, search_messages
-from backlink_records.formatting import DEFAULT_TITLE, format_workbook
-from backlink_records.migrations.runner import migrate_schema_v8
+from backlink_records.formatting import DEFAULT_TITLE, format_workbook, wrap_platform_notes
+from backlink_records.migrations.runner import migrate_schema_v10
 from backlink_records.model import (
     RecordValidationError,
     SCHEMA_VERSION,
@@ -86,10 +86,13 @@ def parser() -> argparse.ArgumentParser:
 
     commands.add_parser("doctor")
     commands.add_parser("format-workbook")
+    commands.add_parser("wrap-platform-notes")
     commands.add_parser("migrate-schema-v5")
     commands.add_parser("migrate-schema-v6")
     commands.add_parser("migrate-schema-v7")
     commands.add_parser("migrate-schema-v8")
+    commands.add_parser("migrate-schema-v9")
+    commands.add_parser("migrate-schema-v10")
 
     for name in (
         "upsert-platform", "upsert-campaign", "upsert-placement", "append-event",
@@ -97,6 +100,8 @@ def parser() -> argparse.ArgumentParser:
         item = commands.add_parser(name)
         item.add_argument("--input", type=Path, required=True)
         item.add_argument("--dry-run", action="store_true")
+        if name == "upsert-placement":
+            item.add_argument("--correction-event-id", help="Linked event for a verified unsubmitted awaiting-approval to waiting-badge correction")
 
     audit_parser = commands.add_parser("audit")
     audit_parser.add_argument("--campaign-id")
@@ -157,13 +162,16 @@ def main(argv: list[str] | None = None) -> int:
                     write_private_json(config_path, config)
                     config["backup"] = str(backup) if backup else None
                 output = config
-        elif args.command in {"migrate-schema-v5", "migrate-schema-v6", "migrate-schema-v7", "migrate-schema-v8"}:
+        elif args.command in {"migrate-schema-v5", "migrate-schema-v6", "migrate-schema-v7", "migrate-schema-v8", "migrate-schema-v9", "migrate-schema-v10"}:
             with writer_lock(config_dir):
-                output = migrate_schema_v8(config_dir)
+                output = migrate_schema_v10(config_dir)
         elif args.command == "doctor":
             output = doctor(config_dir)
             print(json.dumps(output, ensure_ascii=False, indent=2))
             return 0 if output["sheets"] == "ok" and output["gmail"] == "ok" else 1
+        elif args.command == "wrap-platform-notes":
+            with writer_lock(config_dir):
+                output = wrap_platform_notes(load_store(config_dir))
         elif args.command == "format-workbook":
             with writer_lock(config_dir):
                 output = format_workbook(load_store(config_dir))
@@ -182,7 +190,7 @@ def main(argv: list[str] | None = None) -> int:
                             "upsert-campaign": "campaign",
                             "upsert-placement": "placement",
                         }[args.command]
-                        output = upsert(store, kind, payload)
+                        output = upsert(store, kind, payload, correction_event_id=getattr(args, "correction_event_id", None))
         elif args.command == "audit":
             result = workbook_audit(load_store(config_dir), args.campaign_id)
             if args.json:

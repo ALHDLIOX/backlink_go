@@ -27,7 +27,7 @@ Google Sheets is the only writable V1 record store. Use the bundled CLI for auth
 
 Workbook row-one labels are readable English business names, with audit-critical columns first and system fields last. Fixed-choice cells use bright, readable semantic text colors without colored fills; other cells use a light neutral background. JSON inputs and internal validation continue to use the documented snake_case field keys. Run `uv run python scripts/sheets_record.py format-workbook` to restore labels, gridlines, frozen panes, widths, and styling after manual formatting changes.
 
-The current workbook schema is version 8. If `doctor` reports schema 4 through 7, run `uv run python scripts/sheets_record.py migrate-schema-v8` once. The migration combines legacy result tables into `Placements`, preserves operational evidence, puts the product ID first, and keeps business timestamps at local `YYYY-MM-DD HH:MM` precision.
+The current workbook schema is version 10. If `doctor` reports schema 4 through 9, run `uv run python scripts/sheets_record.py migrate-schema-v10` once. The migration combines legacy result tables into `Placements`, preserves operational evidence, puts the product ID first, and keeps business timestamps at local `YYYY-MM-DD HH:MM` precision.
 
 Never invent product, company, founder, pricing, address, launch, ownership, contact, or legal facts. Keep optional unknowns blank and block required unknowns.
 
@@ -36,6 +36,8 @@ Never invent product, company, founder, pricing, address, launch, ownership, con
 Reject or separate any route that is irrelevant to the product, unavailable, unreleased-only, paid-link-only, forced-reciprocal, a known low-quality directory network, or prohibited for automated form work. Do not select sites because they promise dofollow links, ranking gains, DA/DR, or backlink volume.
 
 Use only the exact brand, product name, or naked canonical URL as public link text. Never request dofollow treatment or use repeated commercial exact-match anchors.
+
+Record all observed submission plans in `Platforms.cost_detail`, not Notes. Follow [the pricing and badge queue rules](references/status-model.md#pricing-and-badge-queue): when free-with-wait and free-with-badge coexist, select the badge route, set reciprocal requirement to `required`, record `waiting badge`, and exit without submitting. This optional badge route is an explicit exception to the forced-reciprocal exclusion. When a badge requirement is discovered during filling, pause before submission and record a `pause for badge` Event plus `waiting badge`. For a known badge requirement, an explicitly authorized preparation run may fill up to badge verification, then wait for the user to confirm deployment. Verify the deployed badge before resuming as `in progress` or `draft saved`; mark submitted only after actual receipt. Ordinary batches skip waiting-badge rows unless the user authorizes preparation or resumption.
 
 ## Build the queue
 

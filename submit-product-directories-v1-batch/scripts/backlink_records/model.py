@@ -6,21 +6,21 @@ import idna
 import json
 import re
 
-SCHEMA_VERSION = "8"
+SCHEMA_VERSION = "10"
 
 
-PREVIOUS_SCHEMA_VERSION = "7"
+PREVIOUS_SCHEMA_VERSION = "9"
 
 
 LEGACY_SCHEMA_VERSION = "4"
 
 
-POLICY_VERSION = "backlink-operations-v1-policy-3"
+POLICY_VERSION = "backlink-operations-v1-policy-4"
 
 
 ALLOWED_STATUSES = {
     "not attempted", "in progress", "draft saved", "submitted", "submitted for review",
-    "scheduled", "awaiting approval", "awaiting email verification", "published",
+    "scheduled", "awaiting approval", "awaiting email verification", "waiting badge", "published",
     "outcome unknown", "blocked — manual verification", "blocked — missing verified data",
     "blocked — account or email policy", "rejected", "removed", "unavailable", "paid-only",
     "ineligible", "duplicate — no action", "terminated by user",
@@ -34,7 +34,7 @@ ALLOWED_COST_MODELS = {"free", "paid", "freemium", "unknown"}
 
 
 EXECUTED = {"in progress", "draft saved", "submitted", "submitted for review", "scheduled",
-            "awaiting approval", "awaiting email verification", "published", "outcome unknown"}
+            "awaiting approval", "awaiting email verification", "waiting badge", "published", "outcome unknown"}
 
 
 TRACKING_KEYS = {"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
@@ -49,7 +49,7 @@ UNVERIFIED_BACKLINK = "not checked — no public backlink verified"
 
 
 PLATFORM_HEADERS = ["website_name", "platform_domain", "canonical_submission_url", "availability",
-                    "cost_model", "account_required", "verification_pattern", "reciprocal_requirement",
+                    "cost_model", "reciprocal_requirement", "cost_detail", "account_required", "verification_pattern",
                     "last_verified_at", "route", "source", "notes", "platform_id", "row_version"]
 
 
@@ -73,13 +73,23 @@ TABLE_HEADERS = {"Platforms": PLATFORM_HEADERS, "Campaigns": CAMPAIGN_HEADERS,
                  "Placements": PLACEMENT_HEADERS, "Events": EVENT_HEADERS}
 
 
+SCHEMA_V9_TABLE_HEADERS = {**TABLE_HEADERS, "Platforms": [
+    "website_name", "platform_domain", "canonical_submission_url", "availability",
+    "cost_model", "cost_detail", "account_required", "verification_pattern", "reciprocal_requirement",
+    "last_verified_at", "route", "source", "notes", "platform_id", "row_version",
+]}
+
+
+SCHEMA_V8_TABLE_HEADERS = {**SCHEMA_V9_TABLE_HEADERS, "Platforms": [h for h in SCHEMA_V9_TABLE_HEADERS["Platforms"] if h != "cost_detail"]}
+
+
 SCHEMA_V7_PLACEMENT_HEADERS = ["platform_domain", "website", "status", "public_url", "backlink_url", "anchor_text",
     "exact_result", "follow_up", "verification", "action_at", "last_checked", "placement_id", "queue_id",
     "product_canonical_id", "campaign_id", "platform_id", "route", "account_alias", "idempotency_key",
     "authorization_reference", "evidence_reference", "execution_method", "execution_notes", "row_version"]
 
 
-SCHEMA_V7_TABLE_HEADERS = {"Platforms": PLATFORM_HEADERS, "Campaigns": CAMPAIGN_HEADERS,
+SCHEMA_V7_TABLE_HEADERS = {"Platforms": SCHEMA_V8_TABLE_HEADERS["Platforms"], "Campaigns": CAMPAIGN_HEADERS,
     "Placements": SCHEMA_V7_PLACEMENT_HEADERS, "Events": EVENT_HEADERS}
 
 
@@ -200,7 +210,7 @@ LEGACY_HEADER_LABELS.update({
 HEADER_LABELS = {
     "website_name": "Platform Name", "platform_domain": "Platform Domain",
     "canonical_submission_url": "Canonical Submission URL", "availability": "Availability",
-    "cost_model": "Cost Model", "account_required": "Account Required",
+    "cost_model": "Cost Model", "cost_detail": "Cost Detail", "account_required": "Account Required",
     "verification_pattern": "Verification Pattern", "reciprocal_requirement": "Reciprocal Requirement",
     "last_verified_at": "Last Verified", "route": "Route", "source": "Source", "notes": "Notes",
     "platform_id": "Platform ID", "row_version": "Row Version",
@@ -357,7 +367,7 @@ def computed_idempotency_key(record: dict[str, object]) -> str:
 
 
 def validate_platform(r: dict[str, object]) -> None:
-    _require(r, [h for h in PLATFORM_HEADERS if h not in {"row_version", "source", "notes"}], "platform"); validate_privacy(r); require_url_matches_platform_domain(r["canonical_submission_url"], r["platform_domain"], "canonical_submission_url"); _assert_time(r["last_verified_at"], "last_verified_at")
+    _require(r, [h for h in PLATFORM_HEADERS if h not in {"row_version", "source", "notes", "cost_detail"}], "platform"); validate_privacy(r); require_url_matches_platform_domain(r["canonical_submission_url"], r["platform_domain"], "canonical_submission_url"); _assert_time(r["last_verified_at"], "last_verified_at")
     if r["availability"] not in {"available", "unavailable", "unknown"}: raise RecordValidationError("invalid availability")
     if r["cost_model"] not in ALLOWED_COST_MODELS: raise RecordValidationError("invalid cost_model")
     if r["account_required"] not in {"yes", "no", "unknown"}: raise RecordValidationError("invalid account_required")
@@ -386,6 +396,11 @@ def validate_placement_state(r: dict[str, object]) -> None:
     if status in {"submitted", "submitted for review", "scheduled", "awaiting approval", "awaiting email verification"}:
         if not _meaningful_action_time(r.get("action_at")) or not all(_meaningful(r.get(f)) for f in ("exact_result", "evidence_reference")):
             raise RecordValidationError("submitted or pending placement requires action_at, exact_result, and evidence_reference")
+    if status == "waiting badge":
+        if str(r.get("action_at")) != "not submitted" or any(_meaningful(r.get(f)) for f in ("public_url", "backlink_url")):
+            raise RecordValidationError("waiting badge must remain unsubmitted without public/backlink URLs")
+        if not all(_meaningful(r.get(f)) for f in ("exact_result", "follow_up", "evidence_reference")):
+            raise RecordValidationError("waiting badge requires plan result, badge follow-up, and evidence")
     if status == "published":
         for f in ("public_url", "backlink_url", "anchor_text", "exact_result", "verification", "action_at", "last_checked", "evidence_reference"):
             if f == "action_at" and str(r.get(f, "")).strip().lower() == "unknown": continue

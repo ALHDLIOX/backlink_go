@@ -37,7 +37,7 @@ class GridStore(GoogleSheetsStore):
             "rowCount": 1000, "columnCount": len(fields), "frozenRowCount": 1}}
             for i, (tab, fields) in enumerate(headers.items(), 1)}
         labels = (
-            MODEL.HEADER_LABELS if version == MODEL.SCHEMA_VERSION else
+            MODEL.HEADER_LABELS if version in {MODEL.SCHEMA_VERSION, "8", "9"} else
             MODEL.SCHEMA_V7_HEADER_LABELS if version == "7" else
             MODEL.LEGACY_HEADER_LABELS
         )
@@ -95,12 +95,12 @@ class GridStore(GoogleSheetsStore):
 class MigrationRegressionTests(unittest.TestCase):
     def test_each_legacy_version_clears_retained_rows_and_reads_back(self):
         schemas = {"4": MODEL.LEGACY_TABLE_HEADERS, "5": MODEL.SCHEMA_V5_TABLE_HEADERS,
-                   "6": MODEL.SCHEMA_V6_TABLE_HEADERS, "7": MODEL.SCHEMA_V7_TABLE_HEADERS}
+                   "6": MODEL.SCHEMA_V6_TABLE_HEADERS, "7": MODEL.SCHEMA_V7_TABLE_HEADERS, "8": MODEL.SCHEMA_V8_TABLE_HEADERS, "9": MODEL.SCHEMA_V9_TABLE_HEADERS}
         for version, headers in schemas.items():
             with self.subTest(version=version), tempfile.TemporaryDirectory() as root:
                 source = {"Platforms": [{**platform(last_verified_at="2026-09-15T10:00:00+08:00"), "row_version": "1"}],
                           "Campaigns": [{**campaign(), "row_version": "1"}]}
-                if version == "7":
+                if version in {"7", "8", "9"}:
                     source["Placements"] = [MODEL.prepare_record("placement", queued())]
                     source["Events"] = [MODEL.prepare_record("event", event())]
                 store = GridStore(version, headers, source)
@@ -110,7 +110,12 @@ class MigrationRegressionTests(unittest.TestCase):
                 with patch.object(runner, "GoogleSheetsStore", return_value=store), patch.object(runner, "build_service"):
                     result = runner.migrate_schema_v8(config)
                 self.assertTrue(result["migrated"])
-                self.assertEqual(store.version, "8")
+                self.assertEqual(store.records("Platforms")[0]["cost_detail"], "")
+                self.assertEqual(store.records("Platforms")[0]["notes"], "none")
+                self.assertEqual(len(list(config.glob("schema-*-backup-*.json"))), 1)
+                with patch.object(runner, "GoogleSheetsStore", return_value=store), patch.object(runner, "build_service"):
+                    self.assertFalse(runner.migrate_schema_v9(config)["migrated"])
+                self.assertEqual(store.version, MODEL.SCHEMA_VERSION)
                 self.assertTrue(operations.workbook_audit(store, None)["valid"])
                 for tab in MODEL.TABLE_HEADERS:
                     self.assertEqual(len(store.records(tab)), len(source.get(tab, [])))
@@ -238,7 +243,7 @@ class PackageRegressionTests(unittest.TestCase):
             "getProfile": lambda self, **kwargs: self,
             "execute": lambda self: {"emailAddress": "redacted@example.test"},
         })()
-        for version in ("4", "5", "6", "7", "8"):
+        for version in ("4", "5", "6", "7", "8", "9", "10"):
             with self.subTest(version=version), tempfile.TemporaryDirectory() as root:
                 config = Path(root)
                 credentials.write_private_json(config / "v1-sheets.json", {"schema_version": version, "spreadsheet_id": "sheet"})
@@ -249,4 +254,4 @@ class PackageRegressionTests(unittest.TestCase):
                 ), redirect_stdout(out):
                     code = cli.main(["--config-dir", root, "doctor"])
                 self.assertEqual(code, 0)
-                self.assertEqual(json.loads(out.getvalue())["migration_required"], version != "8")
+                self.assertEqual(json.loads(out.getvalue())["migration_required"], version != MODEL.SCHEMA_VERSION)
