@@ -23,7 +23,7 @@ Start with this entrypoint. Do not preload every reference or every file in the 
 4. Load [references/browser-control-routing.md](references/browser-control-routing.md) only when the current environment has no already verified browser binding, the user changes the requested surface, the environment changes, or the active binding fails. Reuse a verified binding within the batch.
 5. Load [references/sheets-recording.md](references/sheets-recording.md) only for initial setup, migration, exact payload syntax, or a write/reconciliation failure. Run `uv run python scripts/sheets_record.py doctor` before processing the queue.
 
-Google Sheets is the only writable V1 record store. Use the bundled CLI for authentication, initialization, validation, lookup, writes, audits, and Markdown exports. The same private OAuth token may use the bundled Gmail read-only commands for an explicit mailbox search or a single-message read; keep mail content transient and never copy it into the record store. Do not call a Google Sheets connector, read its plugin documentation, hand-author spreadsheet requests, or maintain a second writable Markdown record. Stop on missing OAuth, unavailable API access, or schema drift.
+Google Sheets is the only writable V1 record store. Use the bundled CLI for authentication, initialization, validation, lookup, writes, audits, and Markdown exports. The same private OAuth token may use the bundled Gmail read-only commands for an explicit mailbox search, a single-message read, or matching login/registration verification under the standing authentication authorization; keep mail content transient and never copy it into the record store. Do not call a Google Sheets connector, read its plugin documentation, hand-author spreadsheet requests, or maintain a second writable Markdown record. Stop on missing OAuth, unavailable API access, or schema drift.
 
 Workbook row-one labels are readable English business names, with audit-critical columns first and system fields last. Fixed-choice cells use bright, readable semantic text colors without colored fills; other cells use a light neutral background. JSON inputs and internal validation continue to use the documented snake_case field keys. Run `uv run python scripts/sheets_record.py format-workbook` to restore labels, gridlines, frozen panes, widths, and styling after manual formatting changes.
 
@@ -50,11 +50,12 @@ Use only the exact brand, product name, or naked canonical URL as public link te
 ## Run the verification-first pipeline
 
 1. Run a read-only preflight over each shard before entering product-listing fields.
-2. Expose the earliest native CAPTCHA, Turnstile, image code, email check, login, or similar safeguard.
-3. Attempt only the site's ordinary native automatic verification. Never bypass, outsource, or weaken a safeguard.
-4. Move unresolved items to one manual queue and continue processing eligible sites.
-5. After the user completes the queue, recheck token validity and process short-lived tokens first.
-6. Do not hold more active challenge tabs than the configured browser capacity.
+2. Apply [references/authentication.md](references/authentication.md) whenever authentication is needed: reuse an authorized session, otherwise use the configured Google account for sign-in or registration and retrieve matching Gmail verification without renewed approval. Hand off when that route is unavailable.
+3. Expose the earliest native CAPTCHA, Turnstile, image code, email check, login, or similar safeguard.
+4. Attempt only the site's ordinary native automatic verification. Never bypass, outsource, or weaken a safeguard.
+5. Move unresolved items to one manual queue and continue processing eligible sites.
+6. After the user completes the queue, recheck token validity and process short-lived tokens first.
+7. Do not hold more active challenge tabs than the configured browser capacity.
 
 ## Execute forms at scale
 
