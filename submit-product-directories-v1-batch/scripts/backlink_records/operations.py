@@ -19,6 +19,7 @@ from backlink_records.model import (
     SCHEMA_V6_TABLE_HEADERS,
     SCHEMA_V7_TABLE_HEADERS,
     SCHEMA_V8_TABLE_HEADERS,
+    SCHEMA_V9_TABLE_HEADERS,
     SCHEMA_VERSION,
     TABLE_HEADERS,
     compact_record_timestamps,
@@ -107,6 +108,7 @@ def doctor(config_dir: Path, gmail_service: Any | None = None) -> dict[str, obje
             "6": SCHEMA_V6_TABLE_HEADERS,
             "7": SCHEMA_V7_TABLE_HEADERS,
             "8": SCHEMA_V8_TABLE_HEADERS,
+            "9": SCHEMA_V9_TABLE_HEADERS,
             SCHEMA_VERSION: TABLE_HEADERS,
         }.get(schema_version)
         if table_headers is None:
