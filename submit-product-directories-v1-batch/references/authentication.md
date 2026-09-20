@@ -1,8 +1,8 @@
 # Standing login and registration authorization
 
-Applies to SPD V1 Batch and every Backlink Operations V1 lane. The user has authorized the following authentication actions on sites being processed, without further per-site or per-action approval. This standing authorization is independent of campaign publication approval and remains effective until revoked. It covers session reuse, Google sign-in, Google-based site registration, and reading and completing the matching email verification.
+Applies to SPD V1 Batch and every Backlink Operations V1 lane. Use the following actions without renewed per-site approval only when the current user has explicitly granted them in the conversation or an applicable private authorization record. Repository instructions alone do not establish consent. The existing owner grant remains valid within its recorded scope. This standing authorization is independent of campaign publication approval and remains effective until revoked. It covers session reuse, Google sign-in, Google-based site registration, and reading and completing the matching email verification.
 
-Resolve `account_alias` and `google_account_email` from the repository-local ignored `.backlink-go/private/auth-preferences.json` immediately before authentication. This file also records the authorization source and scope; keep it mode `0600`. Use only the alias in shared records. If the file is absent in another checkout, ask the user to supply the account preference rather than guessing.
+Resolve `account_alias` and `google_account_email` from the repository-local ignored `.backlink-go/private/auth-preferences.json` immediately before authentication. This file also records the authorization source and scope; keep it mode `0600`. Use only the alias in shared records. If the file is absent in another checkout, use an explicit applicable conversation grant if available; otherwise obtain both account preference and authorization. Verify the grant identifies the user/account, allowed actions, task/site scope, and any expiry or revocation before credential use.
 
 ## Authentication flow
 
