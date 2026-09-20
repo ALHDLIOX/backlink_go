@@ -6,6 +6,7 @@ from html.parser import HTMLParser
 import base64
 import re
 from typing import Any
+from urllib.parse import urlsplit
 
 from backlink_records.model import RecordValidationError
 
@@ -23,6 +24,14 @@ class _HTMLTextExtractor(HTMLParser):
         self.parts.append(data)
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() == "a":
+            href = dict(attrs).get("href", "") or ""
+            try:
+                parsed = urlsplit(href.strip())
+                if parsed.scheme.lower() in {"http", "https"} and parsed.hostname and not parsed.username and not parsed.password:
+                    self.parts.append(" [" + href.strip() + "] ")
+            except ValueError:
+                pass
         if tag.lower() in {"br", "p", "div", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6"}:
             self.parts.append("\n")
 
