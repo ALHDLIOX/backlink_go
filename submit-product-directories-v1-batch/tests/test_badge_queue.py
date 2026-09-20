@@ -72,6 +72,34 @@ class BadgeQueueTests(unittest.TestCase):
         self.assertFalse(audit["valid"])
         self.assertTrue(any("new resume" in error for error in audit["errors"]))
 
+
+    def test_negated_badge_outcomes_do_not_count_as_success(self):
+        for bad_result in ("badge verified; not submitted", "badge verified; unpublished"):
+            with self.subTest(result=bad_result):
+                store = MemoryStore()
+                SHEETS.upsert(store, "platform", platform(reciprocal_requirement="required"))
+                SHEETS.upsert(store, "campaign", campaign())
+                SHEETS.upsert(store, "placement", self.waiting(status="not attempted", exact_result="not attempted"))
+                SHEETS.append_event(store, event(action="defer for badge", result="waiting badge"))
+                SHEETS.upsert(store, "placement", {**self.waiting(), "expected_row_version": "1"})
+                SHEETS.append_event(store, event(event_id="bad-resume", action="resume after badge verification", result=bad_result))
+                resume = {**placement(status="submitted", public_url="not applicable", backlink_url="not checked"), "expected_row_version": "2"}
+                with self.assertRaisesRegex(MODEL.RecordValidationError, "exact submitted token"):
+                    SHEETS.upsert(store, "placement", resume)
+                store.tables["Placements"][0] = MODEL.prepare_record("placement", placement(status="submitted", public_url="not applicable", backlink_url="not checked"))
+                audit = SHEETS.workbook_audit(store, None)
+                self.assertFalse(audit["valid"])
+                self.assertTrue(any("positive submission outcome token" in error for error in audit["errors"]))
+
+    def test_generic_defer_event_is_not_badge_history(self):
+        store = MemoryStore()
+        SHEETS.upsert(store, "platform", platform())
+        SHEETS.upsert(store, "campaign", campaign())
+        SHEETS.upsert(store, "placement", self.waiting(status="not attempted", exact_result="not attempted"))
+        SHEETS.append_event(store, event(action="defer", result="waiting on editor input"))
+        SHEETS.upsert(store, "placement", {**placement(status="submitted", public_url="not applicable", backlink_url="not checked"), "expected_row_version": "1"})
+        self.assertTrue(SHEETS.workbook_audit(store, None)["valid"])
+
     def test_historical_pending_correction_requires_explicit_linked_event(self):
         store = MemoryStore()
         SHEETS.upsert(store, "platform", platform(reciprocal_requirement="required"))
