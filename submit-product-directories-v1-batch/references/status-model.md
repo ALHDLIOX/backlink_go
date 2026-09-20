@@ -1,6 +1,6 @@
 # Backlink Operations schema 10
 
-Google Sheets is the authoritative V1 record store. Schema 9 has four worksheets: `Platforms`, `Campaigns`, `Placements`, and append-only `Events`. Directory, article, and social execution lanes all write the same Placement model. Business time is `YYYY-MM-DD HH:MM`.
+Google Sheets is the authoritative V1 record store. Schema 10 has four worksheets: `Platforms`, `Campaigns`, `Placements`, and append-only `Events`. Directory, article, and social execution lanes all write the same Placement model. Business time is `YYYY-MM-DD HH:MM`.
 
 ## Platforms and Campaigns
 

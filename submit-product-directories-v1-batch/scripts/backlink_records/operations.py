@@ -99,15 +99,13 @@ def _badge_resume_error(
 def _badge_submission_error(events, status, evidence=None):
     if status not in BADGE_RESUME_STATUSES - {"in progress", "draft saved"}:
         return None
-    resumes = [i for i, event in enumerate(events) if event.get("action") == BADGE_RESUME_ACTION]
+    resumes = [i for i, event in enumerate(events) if str(event.get("action", "")).strip().lower() == BADGE_RESUME_ACTION]
     if not resumes:
         return None
     index = resumes[-1]
     tokens = {part.strip().lower() for part in re.split(r"[;|\n]+", str(events[index].get("result", "")))}
-    if "form resumed" not in tokens:
-        return None
     required = "published" if status == "published" else "submission attempted" if status == "outcome unknown" else "submitted"
-    for event in events[index + 1:]:
+    for event in events[index:]:
         outcomes = {part.strip().lower() for part in re.split(r"[;|\n]+", str(event.get("result", "")))}
         reference = str(event.get("evidence_reference", "")).strip()
         if required in outcomes and reference.lower() not in {"", "none", "unknown", "not applicable"} and (evidence is None or reference == str(evidence)):
@@ -165,13 +163,13 @@ def audit_records(*, campaigns: list[dict[str, object]], placements: list[dict[s
             errors.append(f"{target[0]}/{target[1]}: waiting badge requires a badge queue event")
         if status == "waiting badge":
             pauses = [i for i, event in enumerate(related) if _is_badge_queue_event(event)]
-            resumes = [i for i, event in enumerate(related) if event.get("action") == BADGE_RESUME_ACTION]
+            resumes = [i for i, event in enumerate(related) if str(event.get("action", "")).strip().lower() == BADGE_RESUME_ACTION]
             if resumes and max(pauses, default=-1) <= max(resumes):
                 errors.append(f"{target[0]}/{target[1]}: badge queue re-entry requires a fresh badge pause event")
         if status != "waiting badge" and any(_is_badge_queue_event(event) for event in related):
             resume_error = _badge_resume_error(related, status, None, enforce_transition_outcome=False)
             if resume_error: errors.append(f"{target[0]}/{target[1]}: {resume_error}")
-            outcome_error = _badge_submission_error(related, status)
+            outcome_error = _badge_submission_error(related, status, item.get("evidence_reference"))
             if outcome_error: errors.append(f"{target[0]}/{target[1]}: {outcome_error}")
     for item in selected_campaigns:
         try: validate_campaign(item)
@@ -318,15 +316,15 @@ def upsert(store: GoogleSheetsStore, kind: str, payload: dict[str, Any], *, corr
             next_status = str(payload.get("status", ""))
             if next_status == "waiting badge" and previous_status != "waiting badge":
                 queue_positions = [i for i, event in enumerate(linked_events) if _is_badge_queue_event(event)]
-                resume_positions = [i for i, event in enumerate(linked_events) if event.get("action") == BADGE_RESUME_ACTION]
+                resume_positions = [i for i, event in enumerate(linked_events) if str(event.get("action", "")).strip().lower() == BADGE_RESUME_ACTION]
                 if resume_positions and max(queue_positions, default=-1) <= max(resume_positions):
                     raise RecordValidationError("badge queue re-entry requires a fresh badge pause event")
-            outcome_error = _badge_submission_error(linked_events, next_status, payload.get("evidence_reference"))
-            if outcome_error:
-                raise RecordValidationError(outcome_error)
             if previous_status == "waiting badge" and next_status != "waiting badge":
                 resume_error = _badge_resume_error(linked_events, next_status, payload.get("evidence_reference"))
                 if resume_error: raise RecordValidationError(resume_error)
+            outcome_error = _badge_submission_error(linked_events, next_status, payload.get("evidence_reference"))
+            if outcome_error:
+                raise RecordValidationError(outcome_error)
             if previous_status in {"submitted", "submitted for review", "scheduled", "awaiting approval", "awaiting email verification", "published", "outcome unknown"} and next_status in {"not attempted", "in progress", "draft saved", "waiting badge"} and not correction_event_id:
                 raise RecordValidationError("completed or pending idempotency key cannot be reopened")
         expected_version = str(payload.pop("expected_row_version", "")).strip()
