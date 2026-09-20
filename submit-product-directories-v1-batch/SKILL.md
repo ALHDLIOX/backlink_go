@@ -37,7 +37,7 @@ Reject or separate any route that is irrelevant to the product, unavailable, unr
 
 Use only the exact brand, product name, or naked canonical URL as public link text. Never request dofollow treatment or use repeated commercial exact-match anchors.
 
-Record all observed submission plans in `Platforms.cost_detail`, not Notes. Follow [the pricing and badge queue rules](references/status-model.md#pricing-and-badge-queue): when free-with-wait and free-with-badge coexist, select the badge route, set reciprocal requirement to `required`, record `waiting badge`, and exit without submitting. This optional badge route is an explicit exception to the forced-reciprocal exclusion. Ordinary batches skip waiting-badge rows until the later authorized badge batch.
+Record all observed submission plans in `Platforms.cost_detail`, not Notes. Follow [the pricing and badge queue rules](references/status-model.md#pricing-and-badge-queue): when free-with-wait and free-with-badge coexist, select the badge route, set reciprocal requirement to `required`, record `waiting badge`, and exit without submitting. This optional badge route is an explicit exception to the forced-reciprocal exclusion. When a badge requirement is discovered during filling, pause before submission and record a `pause for badge` Event plus `waiting badge`. For a known badge requirement, an explicitly authorized preparation run may fill up to badge verification, then wait for the user to confirm deployment. Verify the deployed badge before resuming as `in progress` or `draft saved`; mark submitted only after actual receipt. Ordinary batches skip waiting-badge rows unless the user authorizes preparation or resumption.
 
 ## Build the queue
 

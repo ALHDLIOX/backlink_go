@@ -36,8 +36,9 @@ from backlink_records.reconciliation import records_equal, write_with_reconcilia
 from backlink_records.sheets_store import GoogleSheetsStore, load_store, records_with_rows
 
 BADGE_RESUME_ACTION = "resume after badge verification"
-BADGE_QUEUE_ACTIONS = {"select badge launch", "defer for badge"}
+BADGE_QUEUE_ACTIONS = {"select badge launch", "defer for badge", "pause for badge"}
 BADGE_RESUME_STATUSES = {
+    "in progress", "draft saved",
     "submitted", "submitted for review", "scheduled", "awaiting approval",
     "awaiting email verification", "published", "outcome unknown",
 }
@@ -62,7 +63,7 @@ def _badge_resume_error(
     if not queue_positions:
         return "waiting badge transition requires a prior badge queue event"
     if enforce_transition_outcome and next_status not in BADGE_RESUME_STATUSES:
-        return "waiting badge may resume only to a submitted, pending, published, or outcome unknown state"
+        return "waiting badge may resume only to a form, submitted, pending, published, or outcome unknown state"
     queue_position = max(queue_positions)
     candidates = [
         event for i, event in enumerate(linked_events)
@@ -77,9 +78,15 @@ def _badge_resume_error(
     result_tokens = {token.strip() for token in re.split(r"[;|\n]+", result) if token.strip()}
     if "badge verified" not in result_tokens:
         return "badge resume event result must include the exact badge verified token"
+    if "form resumed" in result_tokens and "user confirmed badge deployment" not in result_tokens:
+        return "form resume requires user confirmed badge deployment"
     if not enforce_transition_outcome:
-        if not result_tokens.intersection({"submitted", "published", "submission attempted"}):
+        if not result_tokens.intersection({"submitted", "published", "submission attempted", "form resumed"}):
             return "badge resume event result must include an exact positive submission outcome token"
+        return None
+    if next_status in {"in progress", "draft saved"}:
+        if not {"user confirmed badge deployment", "form resumed"}.issubset(result_tokens):
+            return "form resume requires user confirmed badge deployment and form resumed tokens"
         return None
     required_result = "published" if next_status == "published" else "submitted"
     if next_status == "outcome unknown" and "submission attempted" not in result_tokens:
@@ -135,6 +142,8 @@ def audit_records(*, campaigns: list[dict[str, object]], placements: list[dict[s
         status = str(item.get("status", ""))
         if status in EXECUTED and target not in targets: errors.append(f"{target[0]}/{target[1]}: executed state requires an event")
         related = [event for event in selected_events if str(event.get("idempotency_key", "")) == target[2]]
+        if status == "waiting badge" and not any(_is_badge_queue_event(event) for event in related):
+            errors.append(f"{target[0]}/{target[1]}: waiting badge requires a badge queue event")
         if status != "waiting badge" and any(_is_badge_queue_event(event) for event in related):
             resume_error = _badge_resume_error(related, status, None, enforce_transition_outcome=False)
             if resume_error: errors.append(f"{target[0]}/{target[1]}: {resume_error}")
@@ -262,6 +271,8 @@ def upsert(store: GoogleSheetsStore, kind: str, payload: dict[str, Any], *, corr
             raise RecordValidationError("correction requires a linked correction event with matching evidence")
         if str(correction.get("result", "")).strip().lower() != "no submission confirmed":
             raise RecordValidationError("correction result must be exactly no submission confirmed")
+    if kind == "placement" and payload.get("status") == "waiting badge" and not any(_is_badge_queue_event(event) for event in linked_events):
+        raise RecordValidationError("waiting badge requires a badge queue event")
     if found:
         try:
             if int(found[1].get("row_version", "")) < 1:

@@ -166,3 +166,31 @@ class BadgeQueueTests(unittest.TestCase):
         SHEETS.upsert(store, "placement", {**placement(), "expected_row_version": "1"})
         with self.assertRaises(MODEL.RecordValidationError):
             SHEETS.upsert(store, "placement", {**self.waiting(), "expected_row_version": "2"}, correction_event_id="event-1")
+
+    def test_discovered_badge_pauses_then_resumes_form_after_confirmation(self):
+        store = MemoryStore()
+        SHEETS.upsert(store, "platform", platform(reciprocal_requirement="required"))
+        SHEETS.upsert(store, "campaign", campaign())
+        SHEETS.upsert(store, "placement", self.waiting(status="not attempted"))
+        SHEETS.append_event(store, event(action="login", result="logged in"))
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "badge queue event"):
+            SHEETS.upsert(store, "placement", {**self.waiting(), "expected_row_version": "1"})
+        SHEETS.append_event(store, event(event_id="pause", action="pause for badge", result="waiting badge"))
+        SHEETS.upsert(store, "placement", {**self.waiting(), "expected_row_version": "1"})
+        self.assertTrue(SHEETS.workbook_audit(store, None)["valid"])
+        SHEETS.append_event(store, event(event_id="unconfirmed", action="resume after badge verification", result="badge verified; form resumed"))
+        resume = {**self.waiting(status="in progress", exact_result="Form resumed; not submitted"), "expected_row_version": "2"}
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "user confirmed"):
+            SHEETS.upsert(store, "placement", resume)
+        SHEETS.append_event(store, event(event_id="confirmed", action="resume after badge verification", result="user confirmed badge deployment; badge verified; form resumed"))
+        SHEETS.upsert(store, "placement", resume)
+        self.assertTrue(SHEETS.workbook_audit(store, None)["valid"])
+        SHEETS.upsert(store, "placement", {**self.waiting(status="draft saved"), "expected_row_version": "3"})
+        self.assertTrue(SHEETS.workbook_audit(store, None)["valid"])
+        SHEETS.append_event(store, event(event_id="submitted", action="submit", result="submitted"))
+        SHEETS.upsert(store, "placement", {**placement(status="submitted", public_url="not applicable", backlink_url="not checked"), "expected_row_version": "4"})
+        self.assertTrue(SHEETS.workbook_audit(store, None)["valid"])
+        store.tables["Placements"][0]["status"] = "waiting badge"
+        store.tables["Placements"][0].update(self.waiting())
+        store.tables["Events"] = [item for item in store.tables["Events"] if item["event_id"] != "pause"]
+        self.assertFalse(SHEETS.workbook_audit(store, None)["valid"])
