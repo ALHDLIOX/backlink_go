@@ -127,6 +127,36 @@ class BadgeQueueTests(unittest.TestCase):
         self.assertEqual(store.tables["Placements"][0]["status"], "waiting badge")
         self.assertTrue(SHEETS.workbook_audit(store, None)["valid"])
 
+        resume = {**placement(status="submitted", public_url="not applicable", backlink_url="not checked"), "expected_row_version": "3"}
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "new resume"):
+            SHEETS.upsert(store, "placement", resume)
+        SHEETS.append_event(store, event(event_id="corrected-resume", action="resume after badge verification", result="badge verified; submitted"))
+        SHEETS.upsert(store, "placement", resume)
+        self.assertTrue(SHEETS.workbook_audit(store, None)["valid"])
+        SHEETS.append_event(store, event(event_id="corrected-publish", action="publish", result="published"))
+        SHEETS.upsert(store, "placement", {**placement(), "expected_row_version": "4"})
+        self.assertTrue(SHEETS.workbook_audit(store, None)["valid"])
+        SHEETS.upsert(store, "placement", {**placement(status="removed"), "expected_row_version": "5"})
+        self.assertTrue(SHEETS.workbook_audit(store, None)["valid"])
+        store.tables["Events"] = [item for item in store.tables["Events"] if item["event_id"] != "corrected-resume"]
+        self.assertFalse(SHEETS.workbook_audit(store, None)["valid"])
+
+    def test_correction_preserves_noncanonical_existing_urls(self):
+        for field in ("public_url", "backlink_url"):
+            for url in ("HTTPS://example.test/item", "  https://example.test/item  "):
+                with self.subTest(field=field, url=url):
+                    store = MemoryStore()
+                    SHEETS.upsert(store, "platform", platform(reciprocal_requirement="required"))
+                    SHEETS.upsert(store, "campaign", campaign())
+                    SHEETS.upsert(store, "placement", self.waiting(status="not attempted"))
+                    SHEETS.append_event(store, event())
+                    pending = placement(status="awaiting approval", **{field: url})
+                    SHEETS.upsert(store, "placement", {**pending, "expected_row_version": "1"})
+                    SHEETS.append_event(store, event(event_id="correction", action="correct unsubmitted status", result="no submission confirmed"))
+                    with self.assertRaisesRegex(MODEL.RecordValidationError, "cannot clear existing"):
+                        SHEETS.upsert(store, "placement", {**self.waiting(), "expected_row_version": "2"}, correction_event_id="correction")
+                    self.assertEqual(store.tables["Placements"][0][field], url)
+
     def test_correction_cannot_reopen_published_record(self):
         store = MemoryStore()
         SHEETS.upsert(store, "platform", platform(reciprocal_requirement="required"))
