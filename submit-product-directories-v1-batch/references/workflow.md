@@ -66,7 +66,7 @@ Within each shard:
 
 ## 5. Run verification preflight
 
-Visit every site in the shard before form entry. Expose the earliest verification or login boundary. Attempt only ordinary native automatic verification. Preserve interactive challenges in their original tabs and add them to the manual queue.
+Visit every site in the shard before form entry. Expose the earliest verification or login boundary. Apply [authentication.md](authentication.md) for authorized session reuse, Google login/registration, and matching Gmail verification without renewed approval. Attempt only ordinary native automatic verification for other challenges. Preserve interactive challenges in their original tabs and add them to the manual queue.
 
 Record one state:
 

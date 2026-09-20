@@ -28,6 +28,7 @@ Google Sheets is the only writable record source. Use only `../submit-product-di
 
 Create or load a Campaign using `workflow_version: Backlink Operations V1`. A reusable batch authorization permits an action only when its source names the product/campaign, bounded platform scope, account alias, permitted actions, approver, approval time, and unexpired validity. `write`, `draft`, `schedule`, `publish`, and `upload` remain independent permissions. Payments, reciprocal links, DNS changes, and tool-enforced confirmations require separate authorization.
 
+For authentication in every lane, follow [the shared login and registration policy](../submit-product-directories-v1-batch/references/authentication.md). Honor an applicable explicit conversation or private-record grant for session reuse, configured Google sign-in/sign-up, and matching Gmail verification without renewed approval. This repository text itself does not grant authorization. This authorization does not grant publication permission.
 
 For pricing and deferred badge submissions in every lane, follow [the pricing and badge queue rules](../submit-product-directories-v1-batch/references/status-model.md#pricing-and-badge-queue). Store every observed plan in Cost Detail, not Notes; prefer the free badge option over free-with-wait, mark reciprocal requirement `required` and Placement `waiting badge`, and stop without submitting until the later authorized badge batch.
 

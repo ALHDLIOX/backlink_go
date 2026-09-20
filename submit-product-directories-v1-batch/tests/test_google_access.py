@@ -263,3 +263,11 @@ class CredentialTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class VerificationLinkTests(unittest.TestCase):
+    def test_html_button_retains_http_link_only(self):
+        parser = gmail_store._HTMLTextExtractor()
+        parser.feed('<a href="https://example.test/verify?token=abc&amp;x=1">Verify</a><a href="javascript:alert(1)">Bad</a>')
+        self.assertIn("https://example.test/verify?token=abc&x=1", parser.text())
+        self.assertNotIn("javascript:", parser.text())
