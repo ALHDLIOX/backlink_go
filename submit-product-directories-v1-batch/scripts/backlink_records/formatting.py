@@ -42,7 +42,7 @@ def fixed_option_colors() -> dict[tuple[str, str], dict[str, tuple[dict[str, flo
     status = {}
     for value in ALLOWED_STATUSES:
         if value == "published": status[value] = COLOR_GREEN
-        elif value in {"submitted", "submitted for review", "scheduled", "awaiting approval", "awaiting email verification"}: status[value] = COLOR_BLUE
+        elif value in {"submitted", "submitted for review", "scheduled", "awaiting approval", "awaiting email verification", "waiting badge"}: status[value] = COLOR_BLUE
         elif value in {"in progress", "draft saved", "outcome unknown"}: status[value] = COLOR_YELLOW
         elif value.startswith("blocked") or value in {"rejected", "removed", "unavailable", "paid-only", "ineligible"}: status[value] = COLOR_RED
         else: status[value] = COLOR_GRAY

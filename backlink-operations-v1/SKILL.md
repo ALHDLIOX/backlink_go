@@ -22,11 +22,14 @@ Google Sheets is the only writable record source. Use only `../submit-product-di
 1. Resolve the verified product package from `../products/<product-id>/`. Resolve private values only from the ignored `../.backlink-go/private/product-aliases.json`; never copy raw values into records or output.
 2. Read [references/routing.md](references/routing.md), classify the live destination, and load only the selected lane.
 3. Run `uv run python ../submit-product-directories-v1-batch/scripts/sheets_record.py doctor` before record or browser work.
-4. If schema 4 through 7 is reported, run `migrate-schema-v8`. Stop if OAuth, workbook identity, schema, or headers remain invalid.
+4. If schema 4 through 8 is reported, run `migrate-schema-v9`. Stop if OAuth, workbook identity, schema, or headers remain invalid.
 
 ## Authorization
 
 Create or load a Campaign using `workflow_version: Backlink Operations V1`. A reusable batch authorization permits an action only when its source names the product/campaign, bounded platform scope, account alias, permitted actions, approver, approval time, and unexpired validity. `write`, `draft`, `schedule`, `publish`, and `upload` remain independent permissions. Payments, reciprocal links, DNS changes, and tool-enforced confirmations require separate authorization.
+
+
+For pricing and deferred badge submissions in every lane, follow [the pricing and badge queue rules](../submit-product-directories-v1-batch/references/status-model.md#pricing-and-badge-queue). Store every observed plan in Cost Detail, not Notes; prefer the free badge option over free-with-wait, mark reciprocal requirement `required` and Placement `waiting badge`, and stop without submitting until the later authorized badge batch.
 
 ## Shared record order
 
@@ -53,6 +56,6 @@ Events no longer carry a record type because every event resolves to exactly one
 - [references/routing.md](references/routing.md): execution-lane classification.
 - [references/article-publishing.md](references/article-publishing.md): long-form writing and publication.
 - [references/social-publishing.md](references/social-publishing.md): short-social publication.
-- `../submit-product-directories-v1-batch/references/status-model.md`: unified schema 8 fields and invariants.
+- `../submit-product-directories-v1-batch/references/status-model.md`: unified schema 9 fields and invariants.
 - `../submit-product-directories-v1-batch/references/sheets-recording.md`: fixed CLI commands and JSON examples.
 - `../writer/references/ephemeral-publishing.md`: transient article-writing rules.

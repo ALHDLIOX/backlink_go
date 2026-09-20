@@ -106,7 +106,7 @@ class GoogleSheetsStore:
             actual = self._read_values(f"'{tab_name}'!A1:{column_letter(len(headers))}1")
             actual_headers = actual[0] if actual else []
             labels = (
-                HEADER_LABELS if schema_version == SCHEMA_VERSION else
+                HEADER_LABELS if schema_version in {SCHEMA_VERSION, "8"} else
                 SCHEMA_V7_HEADER_LABELS if schema_version == "7" else
                 LEGACY_HEADER_LABELS
             )

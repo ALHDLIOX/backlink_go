@@ -24,6 +24,7 @@ from backlink_records.model import (
     SCHEMA_V5_TABLE_HEADERS,
     SCHEMA_V6_TABLE_HEADERS,
     SCHEMA_V7_TABLE_HEADERS,
+    SCHEMA_V8_TABLE_HEADERS,
     SCHEMA_VERSION,
     TABLE_HEADERS,
     display_headers,
@@ -184,7 +185,7 @@ def schema_v8_migration_requests(
 
 
 def migrate_schema_v8(config_dir: Path) -> dict[str, object]:
-    """Migrate the configured workbook from schema v4-v7 to schema v8."""
+    """Migrate the configured workbook from schema v4-v8 to the current schema."""
     config_path = config_dir / "v1-sheets.json"
     require_private_file(config_path)
     config = read_json_file(config_path)
@@ -195,7 +196,7 @@ def migrate_schema_v8(config_dir: Path) -> dict[str, object]:
         store.verify_schema()
         return {"migrated": False, "schema_version": SCHEMA_VERSION, "reason": "already current"}
     source_version = str(config.get("schema_version", ""))
-    if source_version not in {LEGACY_SCHEMA_VERSION, "5", "6", PREVIOUS_SCHEMA_VERSION}:
+    if source_version not in {LEGACY_SCHEMA_VERSION, "5", "6", "7", "8"}:
         raise RecordValidationError("workbook config is invalid or unsupported")
 
     metadata = store.metadata()
@@ -211,7 +212,7 @@ def migrate_schema_v8(config_dir: Path) -> dict[str, object]:
 
     source_headers = LEGACY_TABLE_HEADERS if source_version == LEGACY_SCHEMA_VERSION else (
         SCHEMA_V5_TABLE_HEADERS if source_version == "5" else (
-            SCHEMA_V6_TABLE_HEADERS if source_version == "6" else SCHEMA_V7_TABLE_HEADERS
+            SCHEMA_V6_TABLE_HEADERS if source_version == "6" else (SCHEMA_V7_TABLE_HEADERS if source_version == "7" else SCHEMA_V8_TABLE_HEADERS)
         )
     )
     store.verify_schema(source_version, source_headers)
@@ -220,7 +221,11 @@ def migrate_schema_v8(config_dir: Path) -> dict[str, object]:
         values = store._read_values(f"'{tab_name}'!A2:{column_letter(len(old_headers))}")
         source_records = rows_to_records(old_headers, values)
         source_records_by_tab[tab_name] = source_records
-    transform = {"4": v4_to_v8, "5": v5_to_v8, "6": v6_to_v8, "7": v7_to_v8}[source_version]
+    # Preserve an exact private snapshot before any remote mutation.
+    from datetime import datetime, timezone
+    backup = config_dir / ("schema-" + source_version + "-backup-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ") + ".json")
+    write_private_json(backup, {"config": config, "records": source_records_by_tab, "metadata": metadata})
+    transform = {"4": v4_to_v8, "5": v5_to_v8, "6": v6_to_v8, "7": v7_to_v8, "8": v7_to_v8}[source_version]
     migrated_records = transform.migrate_records(source_records_by_tab)
     audit = audit_records(
         campaigns=migrated_records["Campaigns"],
@@ -265,4 +270,8 @@ def migrate_schema_v6(config_dir: Path) -> dict[str, object]:
 
 def migrate_schema_v7(config_dir: Path) -> dict[str, object]:
     """Compatibility alias that migrates an old workbook to the current schema."""
+    return migrate_schema_v8(config_dir)
+
+
+def migrate_schema_v9(config_dir: Path) -> dict[str, object]:
     return migrate_schema_v8(config_dir)
