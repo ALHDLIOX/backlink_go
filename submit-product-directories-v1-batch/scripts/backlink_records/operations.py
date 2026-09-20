@@ -57,7 +57,7 @@ def _badge_resume_error(
     queue_positions = [i for i, event in enumerate(linked_events) if _is_badge_queue_event(event)]
     if not queue_positions:
         return "waiting badge transition requires a prior badge queue event"
-    if next_status not in BADGE_RESUME_STATUSES:
+    if enforce_transition_outcome and next_status not in BADGE_RESUME_STATUSES:
         return "waiting badge may resume only to a submitted, pending, published, or outcome unknown state"
     queue_position = max(queue_positions)
     candidates = [
@@ -256,6 +256,8 @@ def upsert(store: GoogleSheetsStore, kind: str, payload: dict[str, Any], *, corr
         correction = next((event for event in linked_events if event.get("event_id") == correction_event_id), None)
         if not correction or correction.get("action") != "correct unsubmitted status" or correction.get("evidence_reference") != payload.get("evidence_reference"):
             raise RecordValidationError("correction requires a linked correction event with matching evidence")
+        if str(correction.get("result", "")).strip().lower() != "no submission confirmed":
+            raise RecordValidationError("correction result must be exactly no submission confirmed")
     if found:
         try:
             if int(found[1].get("row_version", "")) < 1:
