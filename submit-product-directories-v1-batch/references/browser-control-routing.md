@@ -87,7 +87,7 @@ Use a desktop UI-control adapter only when the requested desktop surface is not 
 
 ## Authentication and verification
 
-- Reuse an authorized session before creating a duplicate account.
+- Follow [authentication.md](authentication.md) for standing Google login, registration, and matching Gmail verification authorization. Reuse an authorized session before creating a duplicate account.
 - Keep login, email verification, CAPTCHA, form work, and final response inspection on the same surface and session when required by the site.
 - Never bypass, outsource, weaken, or evade a CAPTCHA or browser security warning.
 - Preserve unresolved challenges only within the configured active-tab capacity; queue additional sites without issuing short-lived challenges.
