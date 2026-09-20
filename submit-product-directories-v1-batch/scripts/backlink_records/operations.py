@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
+import re
 from typing import Any
 from backlink_records.credentials import build_gmail_service, read_json_file, require_private_file
 from backlink_records.model import (
@@ -35,7 +36,7 @@ from backlink_records.reconciliation import records_equal, write_with_reconcilia
 from backlink_records.sheets_store import GoogleSheetsStore, load_store, records_with_rows
 
 BADGE_RESUME_ACTION = "resume after badge verification"
-BADGE_QUEUE_ACTIONS = {"select badge launch", "defer for badge", "defer"}
+BADGE_QUEUE_ACTIONS = {"select badge launch", "defer for badge"}
 BADGE_RESUME_STATUSES = {
     "submitted", "submitted for review", "scheduled", "awaiting approval",
     "awaiting email verification", "published", "outcome unknown",
@@ -69,17 +70,18 @@ def _badge_resume_error(
     if not candidates:
         return "leaving waiting badge requires a new resume after badge verification event with matching evidence"
     result = str(candidates[-1].get("result", "")).strip().lower()
-    if "badge verified" not in result:
-        return "badge resume event result must record badge verified"
+    result_tokens = {token.strip() for token in re.split(r"[;|\n]+", result) if token.strip()}
+    if "badge verified" not in result_tokens:
+        return "badge resume event result must include the exact badge verified token"
     if not enforce_transition_outcome:
-        if not any(value in result for value in ("submitted", "published", "submission attempted")):
-            return "badge resume event result must record the submission outcome"
+        if not result_tokens.intersection({"submitted", "published", "submission attempted"}):
+            return "badge resume event result must include an exact positive submission outcome token"
         return None
     required_result = "published" if next_status == "published" else "submitted"
-    if next_status == "outcome unknown" and "submission attempted" not in result:
-        return "badge resume event result must record submission attempted for outcome unknown"
-    if next_status != "outcome unknown" and required_result not in result:
-        return f"badge resume event result must record {required_result}"
+    if next_status == "outcome unknown" and "submission attempted" not in result_tokens:
+        return "badge resume event result must include the exact submission attempted token for outcome unknown"
+    if next_status != "outcome unknown" and required_result not in result_tokens:
+        return f"badge resume event result must include the exact {required_result} token"
     return None
 
 
