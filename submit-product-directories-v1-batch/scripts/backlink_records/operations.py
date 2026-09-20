@@ -47,6 +47,10 @@ def _is_badge_queue_event(event: dict[str, object]) -> bool:
     return (
         str(event.get("action", "")).strip().lower() in BADGE_QUEUE_ACTIONS
         or str(event.get("result", "")).strip().lower() == "waiting badge"
+        or (
+            str(event.get("action", "")).strip().lower() == "correct unsubmitted status"
+            and str(event.get("result", "")).strip().lower() == "no submission confirmed"
+        )
     )
 
 
@@ -251,7 +255,7 @@ def upsert(store: GoogleSheetsStore, kind: str, payload: dict[str, Any], *, corr
     if correction_event_id:
         if kind != "placement" or not found or found[1].get("status") != "awaiting approval" or payload.get("status") != "waiting badge":
             raise RecordValidationError("correction only permits awaiting approval to waiting badge")
-        if any(str(found[1].get(field, "")).startswith(("https://", "http://")) for field in ("public_url", "backlink_url")):
+        if any(str(found[1].get(field, "")).strip().lower().startswith(("https://", "http://")) for field in ("public_url", "backlink_url")):
             raise RecordValidationError("correction cannot clear existing public or backlink URLs")
         correction = next((event for event in linked_events if event.get("event_id") == correction_event_id), None)
         if not correction or correction.get("action") != "correct unsubmitted status" or correction.get("evidence_reference") != payload.get("evidence_reference"):
