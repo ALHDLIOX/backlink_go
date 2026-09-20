@@ -23,6 +23,38 @@ CENTERED_BODY_COLUMNS = {
 }
 
 
+CURRENT_COLUMN_WIDTHS = {
+    "Platforms": [200, 200, 240, 150, 145, 140, 234, 130, 240, 157, 126, 144, 126, 234, 137],
+    "Campaigns": [120, 234, 234, 234, 240, 240, 240, 240, 240, 234],
+    "Placements": [120, 240, 234, 144, 216, 240, 234, 240, 198, 240, 234, 240, 240, 180, 234, 234, 126, 240, 240, 240, 240, 240, 240, 234],
+    "Events": [180, 234, 180, 240, 216, 144, 144, 240, 234],
+}
+
+
+CURRENT_BODY_ALIGNMENT = {
+    "Platforms": ["CENTER", "CENTER", "LEFT", "CENTER", "CENTER", "CENTER", "LEFT", "CENTER", "LEFT", "CENTER", "LEFT", "LEFT", "LEFT", "CENTER", "CENTER"],
+    "Campaigns": ["CENTER", "LEFT", "LEFT", "LEFT", "LEFT", "CENTER", "CENTER", "RIGHT", "RIGHT", "CENTER"],
+    "Placements": ["CENTER", "CENTER", "LEFT", "CENTER", "LEFT", "LEFT", "LEFT", "LEFT", "LEFT", "LEFT", "CENTER", "CENTER", "LEFT", "LEFT", "LEFT", "LEFT", "LEFT", "LEFT", "LEFT", "LEFT", "LEFT", "CENTER", "LEFT", "CENTER"],
+    "Events": ["LEFT", "LEFT", "LEFT", "LEFT", "CENTER", "LEFT", "LEFT", "LEFT", "LEFT"],
+}
+
+
+CURRENT_BODY_WRAP = {
+    "Platforms": ["CLIP", "CLIP", "CLIP", "CLIP", "CLIP", "WRAP", "WRAP", "WRAP", "WRAP", "CLIP", "CLIP", "WRAP", "WRAP", "CLIP", "CLIP"],
+    "Campaigns": ["CLIP"] * 10,
+    "Placements": ["CLIP", "CLIP", "CLIP", "WRAP", "CLIP", "CLIP", "CLIP", "WRAP", "WRAP", "WRAP", "CLIP", "CLIP", "CLIP", "CLIP", "CLIP", "CLIP", "CLIP", "CLIP", "CLIP", "CLIP", "CLIP", "CLIP", "WRAP", "CLIP"],
+    "Events": ["CLIP", "CLIP", "CLIP", "CLIP", "CLIP", "CLIP", "WRAP", "CLIP", "CLIP"],
+}
+
+
+CURRENT_HEADER_ALIGNMENT = {
+    "Platforms": ["CENTER", "CENTER", "CENTER", "CENTER", "CENTER", "CENTER", "LEFT", "CENTER", "LEFT", "CENTER", "CENTER", "CENTER", "LEFT", "CENTER", "CENTER"],
+    "Campaigns": ["CENTER"] * 10,
+    "Placements": ["CENTER"] * 24,
+    "Events": ["CENTER"] * 9,
+}
+
+
 COLOR_GREEN = ({"red": 0.91, "green": 0.97, "blue": 0.93}, {"red": 0.082, "green": 0.502, "blue": 0.239})
 
 
@@ -271,8 +303,7 @@ def readable_format_requests(properties: dict[str, dict[str, Any]]) -> list[dict
                 },
             ]
         )
-        for index, label in enumerate(display_headers(tab_name)):
-            width = min(240, max(120, len(label) * 18 + 36))
+        for index, width in enumerate(CURRENT_COLUMN_WIDTHS[tab_name]):
             requests.append(
                 {
                     "updateDimensionProperties": {
@@ -287,18 +318,33 @@ def readable_format_requests(properties: dict[str, dict[str, Any]]) -> list[dict
                     }
                 }
             )
-        for header in CENTERED_BODY_COLUMNS.get(tab_name, ()):
-            column_index = headers.index(header)
+        for index, (alignment, wrap) in enumerate(zip(CURRENT_BODY_ALIGNMENT[tab_name], CURRENT_BODY_WRAP[tab_name])):
             requests.append(
                 {
                     "repeatCell": {
                         "range": {
                             "sheetId": sheet_id,
                             "startRowIndex": 1,
-                            "startColumnIndex": column_index,
-                            "endColumnIndex": column_index + 1,
+                            "startColumnIndex": index,
+                            "endColumnIndex": index + 1,
                         },
-                        "cell": {"userEnteredFormat": {"horizontalAlignment": "CENTER"}},
+                        "cell": {"userEnteredFormat": {"horizontalAlignment": alignment, "wrapStrategy": wrap}},
+                        "fields": "userEnteredFormat(horizontalAlignment,wrapStrategy)",
+                    }
+                }
+            )
+        for index, alignment in enumerate(CURRENT_HEADER_ALIGNMENT[tab_name]):
+            requests.append(
+                {
+                    "repeatCell": {
+                        "range": {
+                            "sheetId": sheet_id,
+                            "startRowIndex": 0,
+                            "endRowIndex": 1,
+                            "startColumnIndex": index,
+                            "endColumnIndex": index + 1,
+                        },
+                        "cell": {"userEnteredFormat": {"horizontalAlignment": alignment}},
                         "fields": "userEnteredFormat.horizontalAlignment",
                     }
                 }
