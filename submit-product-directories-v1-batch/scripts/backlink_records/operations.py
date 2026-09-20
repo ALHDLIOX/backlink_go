@@ -136,7 +136,7 @@ def doctor(config_dir: Path, gmail_service: Any | None = None) -> dict[str, obje
     return output
 
 
-def upsert(store: GoogleSheetsStore, kind: str, payload: dict[str, Any]) -> dict[str, str]:
+def upsert(store: GoogleSheetsStore, kind: str, payload: dict[str, Any], *, correction_event_id: str | None = None) -> dict[str, str]:
     mapping = {
         "platform": ("Platforms", "platform_id", PLATFORM_HEADERS, validate_platform),
         "campaign": ("Campaigns", "campaign_id", CAMPAIGN_HEADERS, validate_campaign),
@@ -191,6 +191,14 @@ def upsert(store: GoogleSheetsStore, kind: str, payload: dict[str, Any]) -> dict
             ]
             if not linked_events:
                 raise RecordValidationError("executed placement state requires a prior linked event")
+    if correction_event_id:
+        if kind != "placement" or not found or found[1].get("status") != "awaiting approval" or payload.get("status") != "waiting badge":
+            raise RecordValidationError("correction only permits awaiting approval to waiting badge")
+        if any(str(found[1].get(field, "")).startswith(("https://", "http://")) for field in ("public_url", "backlink_url")):
+            raise RecordValidationError("correction cannot clear existing public or backlink URLs")
+        correction = next((event for event in linked_events if event.get("event_id") == correction_event_id), None)
+        if not correction or correction.get("action") != "correct unsubmitted status" or correction.get("evidence_reference") != payload.get("evidence_reference"):
+            raise RecordValidationError("correction requires a linked correction event with matching evidence")
     if found:
         try:
             if int(found[1].get("row_version", "")) < 1:
@@ -208,7 +216,7 @@ def upsert(store: GoogleSheetsStore, kind: str, payload: dict[str, Any]) -> dict
         if kind == "placement":
             previous_status = str(found[1].get("status", ""))
             next_status = str(payload.get("status", ""))
-            if previous_status in {"submitted", "submitted for review", "scheduled", "awaiting approval", "awaiting email verification", "published", "outcome unknown"} and next_status in {"not attempted", "in progress", "draft saved", "waiting badge"}:
+            if previous_status in {"submitted", "submitted for review", "scheduled", "awaiting approval", "awaiting email verification", "published", "outcome unknown"} and next_status in {"not attempted", "in progress", "draft saved", "waiting badge"} and not correction_event_id:
                 raise RecordValidationError("completed or pending idempotency key cannot be reopened")
         expected_version = str(payload.pop("expected_row_version", "")).strip()
         current_version = str(found[1].get("row_version", "")).strip()

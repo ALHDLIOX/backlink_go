@@ -98,6 +98,8 @@ def parser() -> argparse.ArgumentParser:
         item = commands.add_parser(name)
         item.add_argument("--input", type=Path, required=True)
         item.add_argument("--dry-run", action="store_true")
+        if name == "upsert-placement":
+            item.add_argument("--correction-event-id", help="Linked event for a verified unsubmitted awaiting-approval to waiting-badge correction")
 
     audit_parser = commands.add_parser("audit")
     audit_parser.add_argument("--campaign-id")
@@ -183,7 +185,7 @@ def main(argv: list[str] | None = None) -> int:
                             "upsert-campaign": "campaign",
                             "upsert-placement": "placement",
                         }[args.command]
-                        output = upsert(store, kind, payload)
+                        output = upsert(store, kind, payload, correction_event_id=getattr(args, "correction_event_id", None))
         elif args.command == "audit":
             result = workbook_audit(load_store(config_dir), args.campaign_id)
             if args.json:

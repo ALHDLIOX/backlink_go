@@ -55,3 +55,31 @@ class BadgeQueueTests(unittest.TestCase):
         resumed = SHEETS.upsert(store, "placement", {**placement(status="submitted", public_url="not applicable", backlink_url="not checked"), "expected_row_version": "2"})
         self.assertEqual(resumed["row_version"], "3")
         self.assertEqual(len(store.tables["Placements"]), 1)
+
+    def test_historical_pending_correction_requires_explicit_linked_event(self):
+        store = MemoryStore()
+        SHEETS.upsert(store, "platform", platform(reciprocal_requirement="required"))
+        SHEETS.upsert(store, "campaign", campaign())
+        SHEETS.upsert(store, "placement", self.waiting(status="not attempted"))
+        SHEETS.append_event(store, event())
+        SHEETS.upsert(store, "placement", {**self.waiting(status="awaiting approval", action_at="2026-09-20 12:00"), "expected_row_version": "1"})
+        payload = {**self.waiting(), "expected_row_version": "2"}
+        with self.assertRaises(MODEL.RecordValidationError):
+            SHEETS.upsert(store, "placement", payload)
+        with self.assertRaises(MODEL.RecordValidationError):
+            SHEETS.upsert(store, "placement", payload, correction_event_id="event-1")
+        SHEETS.append_event(store, event(event_id="correction-1", action="correct unsubmitted status", result="Old status was incorrect; badge selection only, no submission"))
+        result = SHEETS.upsert(store, "placement", payload, correction_event_id="correction-1")
+        self.assertEqual(result["row_version"], "3")
+        self.assertEqual(store.tables["Placements"][0]["status"], "waiting badge")
+        self.assertTrue(SHEETS.workbook_audit(store, None)["valid"])
+
+    def test_correction_cannot_reopen_published_record(self):
+        store = MemoryStore()
+        SHEETS.upsert(store, "platform", platform(reciprocal_requirement="required"))
+        SHEETS.upsert(store, "campaign", campaign())
+        SHEETS.upsert(store, "placement", self.waiting(status="not attempted"))
+        SHEETS.append_event(store, event())
+        SHEETS.upsert(store, "placement", {**placement(), "expected_row_version": "1"})
+        with self.assertRaises(MODEL.RecordValidationError):
+            SHEETS.upsert(store, "placement", {**self.waiting(), "expected_row_version": "2"}, correction_event_id="event-1")
