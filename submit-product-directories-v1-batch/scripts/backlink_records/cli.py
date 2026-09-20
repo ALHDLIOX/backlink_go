@@ -18,7 +18,7 @@ from backlink_records.credentials import (
     writer_lock,
 )
 from backlink_records.gmail_store import read_message, search_messages
-from backlink_records.formatting import DEFAULT_TITLE, format_workbook
+from backlink_records.formatting import DEFAULT_TITLE, format_workbook, wrap_platform_notes
 from backlink_records.migrations.runner import migrate_schema_v9
 from backlink_records.model import (
     RecordValidationError,
@@ -86,6 +86,7 @@ def parser() -> argparse.ArgumentParser:
 
     commands.add_parser("doctor")
     commands.add_parser("format-workbook")
+    commands.add_parser("wrap-platform-notes")
     commands.add_parser("migrate-schema-v5")
     commands.add_parser("migrate-schema-v6")
     commands.add_parser("migrate-schema-v7")
@@ -167,6 +168,9 @@ def main(argv: list[str] | None = None) -> int:
             output = doctor(config_dir)
             print(json.dumps(output, ensure_ascii=False, indent=2))
             return 0 if output["sheets"] == "ok" and output["gmail"] == "ok" else 1
+        elif args.command == "wrap-platform-notes":
+            with writer_lock(config_dir):
+                output = wrap_platform_notes(load_store(config_dir))
         elif args.command == "format-workbook":
             with writer_lock(config_dir):
                 output = format_workbook(load_store(config_dir))
