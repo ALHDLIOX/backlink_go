@@ -397,3 +397,45 @@ def _cell_row(values: list[object]) -> dict[str, object]:
             for value in values
         ]
     }
+
+
+def wrap_platform_notes(store: "GoogleSheetsStore") -> dict[str, object]:
+    """Wrap long platform fields without changing any column dimensions."""
+    metadata = store.verify_schema()
+    sheet = next(s for s in metadata["sheets"] if s["properties"]["title"] == "Platforms")
+    sheet_id = sheet["properties"]["sheetId"]
+    headers = ("cost_detail", "verification_pattern", "notes")
+    ranges = [f"'Platforms'!{column_letter(TABLE_HEADERS['Platforms'].index(h) + 1)}:{column_letter(TABLE_HEADERS['Platforms'].index(h) + 1)}" for h in headers]
+
+    def snapshot():
+        return store.service.spreadsheets().get(
+            spreadsheetId=store.spreadsheet_id, ranges=ranges,
+            fields="sheets(data(startColumn,columnMetadata(pixelSize),rowData(values(userEnteredFormat(wrapStrategy)))))",
+        ).execute()
+
+    def widths(data):
+        return [(grid.get("startColumn", 0), grid.get("columnMetadata", []))
+                for sh in data["sheets"] for grid in sh.get("data", [])]
+
+    before = snapshot()
+    requests = []
+    for header in headers:
+        index = TABLE_HEADERS["Platforms"].index(header)
+        requests.append({"repeatCell": {
+            "range": {"sheetId": sheet_id, "startColumnIndex": index, "endColumnIndex": index + 1},
+            "cell": {"userEnteredFormat": {"wrapStrategy": "WRAP"}},
+            "fields": "userEnteredFormat.wrapStrategy",
+        }})
+    store.service.spreadsheets().batchUpdate(
+        spreadsheetId=store.spreadsheet_id, body={"requests": requests},
+    ).execute()
+    after = snapshot()
+    if widths(before) != widths(after):
+        raise RecordValidationError("column widths changed during wrap formatting")
+    for sh in after["sheets"]:
+        for grid in sh.get("data", []):
+            rows = grid.get("rowData", [])
+            if not rows or any(cell.get("userEnteredFormat", {}).get("wrapStrategy") != "WRAP"
+                               for row in rows for cell in row.get("values", [])):
+                raise RecordValidationError("wrap formatting readback mismatch")
+    return {"wrapped": list(headers), "column_widths_unchanged": True, "readback_verified": True}
