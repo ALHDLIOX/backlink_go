@@ -187,6 +187,10 @@ class BadgeQueueTests(unittest.TestCase):
         self.assertTrue(SHEETS.workbook_audit(store, None)["valid"])
         SHEETS.upsert(store, "placement", {**self.waiting(status="draft saved"), "expected_row_version": "3"})
         self.assertTrue(SHEETS.workbook_audit(store, None)["valid"])
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "later submission outcome"):
+            SHEETS.upsert(store, "placement", {**placement(status="submitted", public_url="not applicable", backlink_url="not checked"), "expected_row_version": "4"})
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "fresh badge pause"):
+            SHEETS.upsert(store, "placement", {**self.waiting(), "expected_row_version": "4"})
         SHEETS.append_event(store, event(event_id="submitted", action="submit", result="submitted"))
         SHEETS.upsert(store, "placement", {**placement(status="submitted", public_url="not applicable", backlink_url="not checked"), "expected_row_version": "4"})
         self.assertTrue(SHEETS.workbook_audit(store, None)["valid"])
