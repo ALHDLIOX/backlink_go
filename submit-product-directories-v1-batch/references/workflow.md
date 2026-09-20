@@ -125,3 +125,5 @@ Run `uv run python scripts/sheets_record.py audit --campaign-id CAMPAIGN_ID`, re
 - operator time, verified submissions per hour, recovery rate, and outstanding queue.
 
 Do not equate `submitted` with `published` or use volume as evidence of SEO value.
+
+The user-selected free badge alternative to a free waiting plan is an explicit exception to the forced-reciprocal exclusion. Apply the pricing and badge queue rules in `status-model.md`: record all plans in Cost Detail, set reciprocal requirement to `required`, queue `waiting badge`, and leave without submitting. Skip these rows in ordinary batches; resume only in the later authorized badge-processing batch after verifying the badge.

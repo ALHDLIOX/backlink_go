@@ -18,6 +18,7 @@ from backlink_records.model import (
     SCHEMA_V5_TABLE_HEADERS,
     SCHEMA_V6_TABLE_HEADERS,
     SCHEMA_V7_TABLE_HEADERS,
+    SCHEMA_V8_TABLE_HEADERS,
     SCHEMA_VERSION,
     TABLE_HEADERS,
     compact_record_timestamps,
@@ -58,6 +59,8 @@ def audit_records(*, campaigns: list[dict[str, object]], placements: list[dict[s
         pid = str(item.get("platform_id", ""))
         if pid not in pmap: errors.append(f"{label}: unknown platform_id")
         elif not platform_domains_match(item.get("platform_domain"), pmap[pid].get("platform_domain")): errors.append(f"{label}: platform_domain does not match platform")
+        if item.get("status") == "waiting badge" and pid in pmap and pmap[pid].get("reciprocal_requirement") != "required":
+            errors.append(f"{label}: waiting badge requires reciprocal_requirement required")
         try: validate_placement(item)
         except RecordValidationError as exc: errors.append(f"{label}: {exc}")
         status_counts[str(item.get("status", "missing"))] += 1
@@ -102,7 +105,8 @@ def doctor(config_dir: Path, gmail_service: Any | None = None) -> dict[str, obje
             LEGACY_SCHEMA_VERSION: LEGACY_TABLE_HEADERS,
             "5": SCHEMA_V5_TABLE_HEADERS,
             "6": SCHEMA_V6_TABLE_HEADERS,
-            PREVIOUS_SCHEMA_VERSION: SCHEMA_V7_TABLE_HEADERS,
+            "7": SCHEMA_V7_TABLE_HEADERS,
+            "8": SCHEMA_V8_TABLE_HEADERS,
             SCHEMA_VERSION: TABLE_HEADERS,
         }.get(schema_version)
         if table_headers is None:
@@ -169,6 +173,8 @@ def upsert(store: GoogleSheetsStore, kind: str, payload: dict[str, Any]) -> dict
             platform[1].get("platform_domain", ""), payload.get("platform_domain", "")
         ):
             raise RecordValidationError("placement platform_domain does not match platform")
+        if payload.get("status") == "waiting badge" and platform[1].get("reciprocal_requirement") != "required":
+            raise RecordValidationError("waiting badge requires reciprocal_requirement required")
         if found and found[1].get("campaign_id") != str(payload.get("campaign_id")):
             raise RecordValidationError("idempotency_key already belongs to another campaign")
         for record in existing_records:
@@ -202,7 +208,7 @@ def upsert(store: GoogleSheetsStore, kind: str, payload: dict[str, Any]) -> dict
         if kind == "placement":
             previous_status = str(found[1].get("status", ""))
             next_status = str(payload.get("status", ""))
-            if previous_status in {"submitted", "submitted for review", "scheduled", "awaiting approval", "awaiting email verification", "published", "outcome unknown"} and next_status in {"not attempted", "in progress", "draft saved"}:
+            if previous_status in {"submitted", "submitted for review", "scheduled", "awaiting approval", "awaiting email verification", "published", "outcome unknown"} and next_status in {"not attempted", "in progress", "draft saved", "waiting badge"}:
                 raise RecordValidationError("completed or pending idempotency key cannot be reopened")
         expected_version = str(payload.pop("expected_row_version", "")).strip()
         current_version = str(found[1].get("row_version", "")).strip()

@@ -19,7 +19,7 @@ from backlink_records.credentials import (
 )
 from backlink_records.gmail_store import read_message, search_messages
 from backlink_records.formatting import DEFAULT_TITLE, format_workbook
-from backlink_records.migrations.runner import migrate_schema_v8
+from backlink_records.migrations.runner import migrate_schema_v9
 from backlink_records.model import (
     RecordValidationError,
     SCHEMA_VERSION,
@@ -90,6 +90,7 @@ def parser() -> argparse.ArgumentParser:
     commands.add_parser("migrate-schema-v6")
     commands.add_parser("migrate-schema-v7")
     commands.add_parser("migrate-schema-v8")
+    commands.add_parser("migrate-schema-v9")
 
     for name in (
         "upsert-platform", "upsert-campaign", "upsert-placement", "append-event",
@@ -157,9 +158,9 @@ def main(argv: list[str] | None = None) -> int:
                     write_private_json(config_path, config)
                     config["backup"] = str(backup) if backup else None
                 output = config
-        elif args.command in {"migrate-schema-v5", "migrate-schema-v6", "migrate-schema-v7", "migrate-schema-v8"}:
+        elif args.command in {"migrate-schema-v5", "migrate-schema-v6", "migrate-schema-v7", "migrate-schema-v8", "migrate-schema-v9"}:
             with writer_lock(config_dir):
-                output = migrate_schema_v8(config_dir)
+                output = migrate_schema_v9(config_dir)
         elif args.command == "doctor":
             output = doctor(config_dir)
             print(json.dumps(output, ensure_ascii=False, indent=2))
