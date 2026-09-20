@@ -410,7 +410,7 @@ def wrap_platform_notes(store: "GoogleSheetsStore") -> dict[str, object]:
     def snapshot():
         return store.service.spreadsheets().get(
             spreadsheetId=store.spreadsheet_id, ranges=ranges,
-            fields="sheets(data(startColumn,columnMetadata(pixelSize),rowData(values(userEnteredFormat(wrapStrategy)))))",
+            fields="sheets(data(startColumn,columnMetadata(pixelSize),rowData(values(userEnteredFormat(wrapStrategy,horizontalAlignment)))))",
         ).execute()
 
     def widths(data):
@@ -423,8 +423,8 @@ def wrap_platform_notes(store: "GoogleSheetsStore") -> dict[str, object]:
         index = TABLE_HEADERS["Platforms"].index(header)
         requests.append({"repeatCell": {
             "range": {"sheetId": sheet_id, "startColumnIndex": index, "endColumnIndex": index + 1},
-            "cell": {"userEnteredFormat": {"wrapStrategy": "WRAP"}},
-            "fields": "userEnteredFormat.wrapStrategy",
+            "cell": {"userEnteredFormat": {"wrapStrategy": "WRAP", "horizontalAlignment": "LEFT"}},
+            "fields": "userEnteredFormat(wrapStrategy,horizontalAlignment)",
         }})
     store.service.spreadsheets().batchUpdate(
         spreadsheetId=store.spreadsheet_id, body={"requests": requests},
@@ -436,6 +436,7 @@ def wrap_platform_notes(store: "GoogleSheetsStore") -> dict[str, object]:
         for grid in sh.get("data", []):
             rows = grid.get("rowData", [])
             if not rows or any(cell.get("userEnteredFormat", {}).get("wrapStrategy") != "WRAP"
+                               or cell.get("userEnteredFormat", {}).get("horizontalAlignment") != "LEFT"
                                for row in rows for cell in row.get("values", [])):
                 raise RecordValidationError("wrap formatting readback mismatch")
-    return {"wrapped": list(headers), "column_widths_unchanged": True, "readback_verified": True}
+    return {"wrapped": list(headers), "column_widths_unchanged": True, "left_aligned": True, "readback_verified": True}
