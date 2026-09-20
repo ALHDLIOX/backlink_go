@@ -53,10 +53,24 @@ class BadgeQueueTests(unittest.TestCase):
         store.tables["Platforms"][0]["reciprocal_requirement"] = "optional"
         self.assertFalse(SHEETS.workbook_audit(store, None)["valid"])
         store.tables["Platforms"][0]["reciprocal_requirement"] = "required"
-        SHEETS.append_event(store, event(event_id="event-2", action="submit", result="badge verified; submitted"))
-        resumed = SHEETS.upsert(store, "placement", {**placement(status="submitted", public_url="not applicable", backlink_url="not checked"), "expected_row_version": "2"})
+        resume_payload = {**placement(status="submitted", public_url="not applicable", backlink_url="not checked"), "expected_row_version": "2"}
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "new resume"):
+            SHEETS.upsert(store, "placement", resume_payload)
+        SHEETS.append_event(store, event(event_id="generic-submit", action="submit", result="badge verified; submitted"))
+        with self.assertRaisesRegex(MODEL.RecordValidationError, "new resume"):
+            SHEETS.upsert(store, "placement", resume_payload)
+        SHEETS.append_event(store, event(event_id="event-2", action="resume after badge verification", result="badge verified; submitted"))
+        resumed = SHEETS.upsert(store, "placement", resume_payload)
         self.assertEqual(resumed["row_version"], "3")
         self.assertEqual(len(store.tables["Placements"]), 1)
+        self.assertTrue(SHEETS.workbook_audit(store, None)["valid"])
+        SHEETS.append_event(store, event(event_id="publish-after-resume", action="publish", result="published", evidence_reference="public-evidence"))
+        SHEETS.upsert(store, "placement", {**placement(evidence_reference="public-evidence"), "expected_row_version": "3"})
+        self.assertTrue(SHEETS.workbook_audit(store, None)["valid"])
+        store.tables["Events"] = [event for event in store.tables["Events"] if event["event_id"] != "event-2"]
+        audit = SHEETS.workbook_audit(store, None)
+        self.assertFalse(audit["valid"])
+        self.assertTrue(any("new resume" in error for error in audit["errors"]))
 
     def test_historical_pending_correction_requires_explicit_linked_event(self):
         store = MemoryStore()

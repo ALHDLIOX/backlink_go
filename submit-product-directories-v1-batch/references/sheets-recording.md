@@ -81,3 +81,5 @@ For a historical `awaiting approval` row whose evidence explicitly proves no sub
 Use `wrap-platform-notes` to set Cost Detail, Verification Pattern, and Notes to WRAP and LEFT alignment across the Platforms columns. This command changes only wrap strategy and horizontal alignment and verifies that the existing column widths are unchanged.
 
 The current live workbook column widths, header alignment, body alignment, and wrap modes are the formatting baseline in `formatting.py`. `format-workbook` restores this user-approved layout. When the user manually revises the workbook presentation, read the live field-level formatting and update the baseline before applying a broad format restore.
+
+A Placement cannot leave `waiting badge` by reusing its original defer/select Event. Append a newer linked Event with action `resume after badge verification`, matching evidence, and a result that explicitly records `badge verified` and the submission or publication outcome. Live upsert and workbook audit both reject a missing, stale, mismatched, or incomplete resume Event.
