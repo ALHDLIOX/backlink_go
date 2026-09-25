@@ -12,15 +12,15 @@ Copy only approved field values, not headings or evidence notes. Recheck changea
 | Product name | Groxen | [Homepage](https://grokboticon.com/) header and FAQ; preserve this spelling. |
 | Official landing page | https://grokboticon.com/ | Live first-party homepage returned HTTP 200 on 2026-09-24. Use the clean URL in Website fields. |
 | Product status | Live public web app | Homepage and [pricing page](https://grokboticon.com/pricing) opened on 2026-09-24; recheck availability before submission. |
-| Company or publisher | unknown — leave blank on submission | No legal entity or publisher name verified from the [terms](https://grokboticon.com/terms-of-service). |
-| Founded or product launch year | unknown — leave blank on submission | Copyright year is not a verified launch or incorporation date. |
-| Started | unknown — leave blank on submission | No verified product start month. |
-| Country or region | unknown — leave blank on submission | Do not infer product or legal-entity location from the domain, currencies, or languages. |
-| Founder or team description | unknown — leave blank on submission | No verified identity or team composition. |
-| Team size | unknown — leave blank on submission | No verified headcount; recheck if required. |
+| Company or publisher | Groxen | User confirmed this company/publisher name on 2026-09-24. No legal suffix or entity type was supplied; verify if a form specifically requests the registered legal name. |
+| Founded or product launch year | Product first publicly launched in 2026 | User confirmed a September 2026 product launch on 2026-09-24. This is not a legal incorporation date. |
+| Started | September 2026 | User-confirmed product launch month on 2026-09-24; do not use as the company incorporation month. |
+| Country or region | United States | User confirmed on 2026-09-24 that both the company registration and product operations are in the US. State, registered address, and incorporation date remain unknown. |
+| Founder or team description | One-person team; founder identity unknown — leave founder fields blank | User confirmed one team member on 2026-09-24 but did not supply a founder name or role. |
+| Team size | 1 | User-confirmed on 2026-09-24; recheck if a form requires a current count. |
 | Business model | Paid one-time credit packs; account creation available | [Pricing page](https://grokboticon.com/pricing) and [terms](https://grokboticon.com/terms-of-service), checked 2026-09-24. Free sign-up credits are configuration-dependent and not specified in this package. |
 | Current English price | Basic $2.99 / 30 credits; Plus $7.99 / 100 credits; Max $17.99 / 300 credits | USD prices on [English pricing page](https://grokboticon.com/pricing), checked 2026-09-24. Recheck before use; other locales have different currencies. |
-| Funding | unknown — leave blank on submission | No verified funding claim. |
+| Funding | No external funding | User stated “无融资” on 2026-09-24. Do not infer revenue, profitability, or a formal “bootstrapped” status. |
 | Platform | Web | Live browser product; no native app verified. |
 | Public asset upload | Route approval required | First-party site assets are packaged, but no destination-specific public upload was authorized. See `asset-manifest.md`. |
 | Preferred category | AI avatar generator | Matches the photo-to-icon workflow; use only when the destination offers a suitable category. |
@@ -100,6 +100,6 @@ Choose the closest category actually offered by the destination. Do not paste th
 - Pricing and offer checked on: 2026-09-24 against the live [pricing page](https://grokboticon.com/pricing), [homepage](https://grokboticon.com/), and repository `src/config/pricing.ts`. Do not reuse a price without rechecking its locale and currency.
 - Public product page checked on: 2026-09-24. The English homepage and pricing page returned successfully; the assets listed in `asset-manifest.md` also returned HTTP 200.
 - Primary product evidence: [homepage](https://grokboticon.com/), [pricing](https://grokboticon.com/pricing), [terms](https://grokboticon.com/terms-of-service), [privacy policy](https://grokboticon.com/privacy-policy), and product repository `messages/en.json`, `src/routes/index.tsx`, `src/config/pricing.ts`, `src/lib/seo.ts`.
-- User-confirmed facts and confirmation date: none beyond the request to prepare the package. Product claims above come from first-party sources.
-- Required unknowns that block submission: None for this reusable package. A destination requiring legal company, founder, country, launch date, or other unverified identity facts needs new evidence or user confirmation before that field can be submitted.
+- User-confirmed facts and confirmation date: On 2026-09-24, the user confirmed Groxen as the company/publisher name, September 2026 as the product's first public launch, the United States as both company registration country and product operating country, a one-person team, and no funding. No legal suffix, founder identity, state, address, or incorporation date was supplied.
+- Required unknowns that block submission: None for this reusable package. If a destination requires the exact registered legal name, legal entity type, founder identity, state, address, incorporation date, or another unverified field, obtain evidence or user confirmation before submitting that field. The fixed sign-up credit offer also remains unconfirmed.
 - Additional route-specific limitations: No campaign, destinations, account/contact aliases, public-upload scope, or source-list authorization was supplied. Public figure gallery images in the site repository are excluded from this package because their input rights and external reuse scope are not established here.

@@ -15,7 +15,7 @@ Canonical website: https://grokboticon.com/
 
 - Use **Groxen** as the product name. `grokboticon.com` is the domain; “Grok bot icon” describes the style. Do not imply affiliation with xAI, Grok, or X Corp.
 - The English copy below was drafted from the live first-party site and repository on 2026-09-24. Review it for the chosen destination and recheck pricing, free offers, availability, and image rules on the submission day.
-- No company, founder, team size, launch date, legal jurisdiction, or contact alias has been verified. Leave optional fields blank; a required field needs evidence or user confirmation.
+- The user confirmed Groxen as the company/publisher name, a September 2026 product launch, US company registration and product operations, a one-person team, and no funding on 2026-09-24. The founder's identity, exact legal suffix, state, address, incorporation date, contact alias, and any fixed sign-up credit offer remain unverified. Leave optional unknown fields blank; a required field needs evidence or user confirmation.
 - No form submission, publication, asset upload, account action, or Google Sheets write is authorized by this package.
 
 ## Record boundary

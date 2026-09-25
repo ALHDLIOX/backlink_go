@@ -80,5 +80,6 @@ Do not imply official recognition, certification, legal status, customer outcome
 
 - Recheck price, free credits, trials, discounts, and availability on the submission day. The English USD one-time packs checked on 2026-09-24 are recorded in `product-profile.md`; other locales have different currencies.
 - Use only current terms visible on a first-party source or explicitly confirmed by the user.
-- Leave optional unknown company, founder, address, funding, revenue, launch date, and legal fields blank.
+- The user confirmed Groxen as the company/publisher name, a September 2026 product launch, US company registration and product operations, a one-person team, and no funding on 2026-09-24. Do not present the product launch as the company incorporation date or infer a legal suffix or founder identity.
+- Leave optional unknown founder, address, state, incorporation date, revenue, and legal-entity-type fields blank.
 - Stop when a destination requires an unknown fact, payment, reciprocal link, DNS change, or permission outside the active authorization.
