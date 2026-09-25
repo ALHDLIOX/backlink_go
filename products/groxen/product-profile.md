@@ -18,7 +18,7 @@ Copy only approved field values, not headings or evidence notes. Recheck changea
 | Country or region | United States | User confirmed on 2026-09-24 that both the company registration and product operations are in the US. State, registered address, and incorporation date remain unknown. |
 | Founder or team description | One-person team; founder identity unknown — leave founder fields blank | User confirmed one team member on 2026-09-24 but did not supply a founder name or role. |
 | Team size | 1 | User-confirmed on 2026-09-24; recheck if a form requires a current count. |
-| Business model | Paid one-time credit packs; account creation available | [Pricing page](https://grokboticon.com/pricing) and [terms](https://grokboticon.com/terms-of-service), checked 2026-09-24. Free sign-up credits are configuration-dependent and not specified in this package. |
+| Business model | Paid one-time credit packs; account creation available | [Pricing page](https://grokboticon.com/pricing) and [terms](https://grokboticon.com/terms-of-service), checked 2026-09-24. A 30-credit sign-up offer valid for 30 days was visible on the pricing page at this check; it is configuration-dependent and must be rechecked before publication. |
 | Current English price | Basic $2.99 / 30 credits; Plus $7.99 / 100 credits; Max $17.99 / 300 credits | USD prices on [English pricing page](https://grokboticon.com/pricing), checked 2026-09-24. Recheck before use; other locales have different currencies. |
 | Funding | No external funding | User stated “无融资” on 2026-09-24. Do not infer revenue, profitability, or a formal “bootstrapped” status. |
 | Platform | Web | Live browser product; no native app verified. |
@@ -60,7 +60,7 @@ The [English pricing page](https://grokboticon.com/pricing) showed these USD one
 | Plus | $7.99 | 100 | 10 |
 | Max | $17.99 | 300 | 30 |
 
-The [homepage](https://grokboticon.com/) says each icon costs 10 credits and failed generations are refunded. Do not promise a fixed number of free credits or a free trial: the public page did not show a fixed current allowance during this check. Recheck prices and any sign-up offer on the submission day.
+The [homepage](https://grokboticon.com/) says each icon costs 10 credits and failed generations are refunded. The [pricing page](https://grokboticon.com/pricing) displayed “Sign up and get 30 free credits · Valid for 30 days” on 2026-09-24, also captured in `screenshots/02-pricing.png`. This offer can change through the site's public configuration, so recheck it on the submission day. Do not present it as a permanent entitlement.
 
 ## Features
 
@@ -69,12 +69,12 @@ Select only features that the destination field can represent and that are curre
 - **Photo-to-icon generation** — Turn one clear person, pet, mascot, or character image into a bot-style avatar.
 - **Consistent minimalist style** — Square image with two black capsule eyes, simplified facial details, and a charcoal background.
 - **Guided image input** — JPEG, PNG, or WebP uploads up to 10 MB; one clear face works best.
-- **Download and edit** — Download the generated 1K square image or describe changes for another generation.
+- **Download and edit** — Download the generated square image or describe changes for another generation. The actual output size can vary by provider result.
 - **Credit recovery on failure** — A failed generation refunds its 10-credit cost.
 
 ### Compact feature line
 
-Photo-to-bot avatar generation, person and pet inputs, square 1K icons, download, instruction-based edits, prepaid credits
+Photo-to-bot avatar generation, person and pet inputs, square icons, download, instruction-based edits, prepaid credits
 
 ## Standalone boundary statement
 
@@ -98,8 +98,8 @@ Choose the closest category actually offered by the destination. Do not paste th
 ## Submission accuracy notes
 
 - Pricing and offer checked on: 2026-09-24 against the live [pricing page](https://grokboticon.com/pricing), [homepage](https://grokboticon.com/), and repository `src/config/pricing.ts`. Do not reuse a price without rechecking its locale and currency.
-- Public product page checked on: 2026-09-24. The English homepage and pricing page returned successfully; the assets listed in `asset-manifest.md` also returned HTTP 200.
+- Public product page checked on: 2026-09-24. The English homepage and pricing page returned successfully; the three original first-party assets returned HTTP 200. Newly created package images were verified as local files and are not product-site assets.
 - Primary product evidence: [homepage](https://grokboticon.com/), [pricing](https://grokboticon.com/pricing), [terms](https://grokboticon.com/terms-of-service), [privacy policy](https://grokboticon.com/privacy-policy), and product repository `messages/en.json`, `src/routes/index.tsx`, `src/config/pricing.ts`, `src/lib/seo.ts`.
 - User-confirmed facts and confirmation date: On 2026-09-24, the user confirmed Groxen as the company/publisher name, September 2026 as the product's first public launch, the United States as both company registration country and product operating country, a one-person team, and no funding. No legal suffix, founder identity, state, address, or incorporation date was supplied.
-- Required unknowns that block submission: None for this reusable package. If a destination requires the exact registered legal name, legal entity type, founder identity, state, address, incorporation date, or another unverified field, obtain evidence or user confirmation before submitting that field. The fixed sign-up credit offer also remains unconfirmed.
-- Additional route-specific limitations: No campaign, destinations, account/contact aliases, public-upload scope, or source-list authorization was supplied. Public figure gallery images in the site repository are excluded from this package because their input rights and external reuse scope are not established here.
+- Required unknowns that block submission: None for this reusable package. If a destination requires the exact registered legal name, legal entity type, founder identity, state, address, incorporation date, or another unverified field, obtain evidence or user confirmation before submitting that field. Verify the current sign-up offer from the live pricing page before using it.
+- Additional route-specific limitations: No campaign, destinations, account/contact aliases, public-upload scope, or source-list authorization was supplied. The public-figure gallery in the product repository was used as a visual reference for the layout, but is not included in this public package because its external promotional reuse scope has not been established.
